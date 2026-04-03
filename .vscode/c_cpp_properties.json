@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "CUDA-WSL2",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/local/cuda/include"
+            ],
+            "defines": [
+                "__CUDA__",
+                "__CUDACC__"
+            ],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
