@@ -7,7 +7,11 @@ using namespace std;
 __global__ void vecAddGPU(const float* A, const float* B, float* C, int N)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < 10) {
+        printf("thread idx = %d | A=%f, B=%f\n", idx, A[idx], B[idx]);
+    }
     if (idx < N)
+        //printf("curid=%d",idx);
         C[idx] = A[idx] * 0.5f + B[idx] * 2.0f; // 稍微复杂一点，更贴近AI计算
 }
 
@@ -50,7 +54,7 @@ int main()
     cudaMemcpy(d_B, h_B, size, cudaMemcpyHostToDevice);
 
     int blockSize = 256;
-    int gridSize = (N + blockSize - 1) / blockSize;
+    int gridSize = (N + blockSize - 1) / blockSize;//向上取整公式
 
     // 🔥 关键：GPU 热身（消除第一次启动开销）
     vecAddGPU<<<gridSize, blockSize>>>(d_A, d_B, d_C, N);
