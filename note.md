@@ -42,3 +42,7 @@ nsys profile --trace=cuda --cuda-memory-usage=true --stats=true -o naive_matmul_
 2.block内的共享变量，为block内线程共享，__shared__修饰
 3.gpu内存，可以搭个内存池避免频繁申请释放
 4.cpu专门给gpu用的内存，无分页连续，使用cudaHostAlloc申请，cudaFreeHost释放
+
+# 7.cudaStream
+多个流并行处理任务，异步
+同一个流内的任务是顺序的
