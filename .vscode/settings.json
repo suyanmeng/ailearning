@@ -1,9 +1,9 @@
 {
     // 文件关联：让 VSCode 把 .cu / .cuh 当作 C++
     "files.associations": {
-        "*.cu": "cpp",
-        "*.cuh": "cpp",
-        "cuda_runtime.h": "cpp"
+        "*.cu": "cuda",
+        "*.cuh": "cuda",
+        "cuda_runtime.h": "cuda"
     },
 
     // C/C++ 插件配置
