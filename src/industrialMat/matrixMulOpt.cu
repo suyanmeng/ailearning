@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cassert>
+#include <chrono>
 #include <cuda_runtime.h>
 using namespace std;
 
@@ -85,8 +86,12 @@ int main()
     dim3 blockDim(TILE_SIZE, TILE_SIZE);
     dim3 gridDim((N + TILE_SIZE - 1) / TILE_SIZE, (M + TILE_SIZE - 1) / TILE_SIZE);
 
+    auto t1 = chrono::high_resolution_clock::now();
     matrixMulOpt<<<gridDim, blockDim>>>(d_C, d_A, d_B, M, N, K);
     cudaDeviceSynchronize();
+    auto t2 = chrono::high_resolution_clock::now();
+    double gpu_time = chrono::duration<double>(t2-t1).count()*1000;
+    cout << "gpu耗时: " << gpu_time << " ms" << endl;
 
     cudaMemcpy(h_C, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
 
