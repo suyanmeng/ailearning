@@ -4,7 +4,8 @@
             "name": "CUDA-WSL2",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/local/cuda/include"
+                "/usr/local/cuda/include",
+                "/usr/local/include/opencv4"
             ],
             "defines": [
                 "__CUDA__",
