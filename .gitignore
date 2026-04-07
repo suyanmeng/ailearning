@@ -1,2 +1,5 @@
 bin
 build
+*.pt
+*.onnx
+*.engine
