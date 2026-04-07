@@ -46,3 +46,12 @@ nsys profile --trace=cuda --cuda-memory-usage=true --stats=true -o naive_matmul_
 # 7.cudaStream
 多个流并行处理任务，异步
 同一个流内的任务是顺序的
+
+# 8.Bank Conflict
+共享内存大于等于block内线程数量，等于的时候会产生bank一次，共享内存分为32个bank，尽量避免多个线程访问同一个bank,访问同一个要排队
+
+
+
+安装OpenCV这两个文件因为网络下载不了，手动下载搬到这两个目录
+opencv/.cache/ippicv/606a19b207ebedfe42d59fd916cc4850-ippicv_2021.10.0_lnx_intel64_20230919_general.tgz
+opencv/.cache/data/7505c44ca4eb54b4ab1e4777cb96ac05-face_landmark_model.dat
