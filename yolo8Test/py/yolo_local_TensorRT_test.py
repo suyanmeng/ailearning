@@ -28,6 +28,7 @@ if not os.path.exists("yolov8n.engine"):
         format="engine",
         device=0,
         imgsz=640,
+        dynamic=False,
         half=True,
     )
     print("✅ 引擎生成完成！")
