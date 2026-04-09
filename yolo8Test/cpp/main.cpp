@@ -3,6 +3,7 @@
 #include <vector>
 #include <chrono>
 #include <opencv2/opencv.hpp>
+#include <filesystem>
 #include "NvInfer.h"
 #include "NvOnnxParser.h"
 
@@ -52,12 +53,12 @@ Mat preprocess(const Mat& img, int input_w, int input_h, float& scale, int& pad_
     resize(img, resized, Size(new_w, new_h));
     Mat padded(input_h, input_w, CV_8UC3, Scalar(114, 114, 114));
     resized.copyTo(padded(Rect(pad_w, pad_h, new_w, new_h)));
-    imwrite("/work/cuda/yolo8Test/cpp/temp1.jpg", padded);
+    imwrite("/work/cuda/yolo8Test/cpp/output/temp1.jpg", padded);
     // BGR -> RGB
     cvtColor(padded, padded, COLOR_BGR2RGB);
-    imwrite("/work/cuda/yolo8Test/cpp/temp2.jpg", padded);
+    imwrite("/work/cuda/yolo8Test/cpp/output/temp2.jpg", padded);
     padded.convertTo(padded, CV_32F, 1.0f / 255.0f);
-    imwrite("/work/cuda/yolo8Test/cpp/temp3.jpg", padded);
+    imwrite("/work/cuda/yolo8Test/cpp/output/temp3.jpg", padded);
 
     // ✅✅✅ 关键：HWC -> CHW（必须加！！！）
     vector<Mat> channels(3);
@@ -195,15 +196,15 @@ void buildEngine(const string& engine_path, const string onnx_path)
 }
 
 int main() {
-    const string onnx_path = "/work/cuda/yolo8Test/py/yolov8n.onnx";
-    const string engine_path = "/work/cuda/yolo8Test/cpp/yolov8n_cpp.engine";
-    const string img_path = "/work/cuda/yolo8Test/py/bus.jpg";
-    const string save_path = "/work/cuda/yolo8Test/cpp/result.jpg";
-    const string temp_path = "/work/cuda/yolo8Test/cpp/temp.jpg";
+    const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
+    const string engine_path = "/work/cuda/yolo8Test/resource/yolov8n_cpp.engine";
+    const string img_path = "/work/cuda/yolo8Test/resource/bus.jpg";
+    const string save_path = "/work/cuda/yolo8Test/cpp/output/result.jpg";
+    const string temp_path = "/work/cuda/yolo8Test/cpp/output/temp.jpg";
 
     // 1. 构建/加载TensorRT引擎
     buildEngine(engine_path, onnx_path);
-
+    filesystem::create_directories(filesystem::path(save_path).parent_path());
     // 2. 加载引擎
     ifstream engine_file(engine_path, ios::binary | ios::ate);
     size_t engine_size = engine_file.tellg();
