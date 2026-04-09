@@ -2,6 +2,22 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "yolo8TestCuda",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "program": "/work/cuda/yolo8Test/cuda/build/yolov8_trt",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "miDebuggerPath": "/usr/local/cuda-12.4/bin/cuda-gdb",
+            "miDebuggerArgs": "-q -x /work/cuda/.gdbinit",
+            "environment": [
+                { "name": "DISPLAY", "value": ":0" },
+                { "name": "LD_LIBRARY_PATH", "value": "/usr/local/cuda-12.4/lib64" },
+                { "name": "CUDA_VISIBLE_DEVICES", "value": "0" }
+            ]
+        },
+        {
             "name": "yolo8Test",
             "type": "cppdbg",
             "request": "launch",
@@ -33,11 +49,11 @@
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "miDebuggerPath": "/usr/local/cuda-12.1/bin/cuda-gdb",
+            "miDebuggerPath": "/usr/local/cuda-12.4/bin/cuda-gdb",
             "miDebuggerArgs": "-q -x /work/cuda/.gdbinit",
             "environment": [
                 { "name": "DISPLAY", "value": ":0" },
-                { "name": "LD_LIBRARY_PATH", "value": "/usr/local/cuda-12.1/lib64" },
+                { "name": "LD_LIBRARY_PATH", "value": "/usr/local/cuda-12.4/lib64" },
                 { "name": "CUDA_VISIBLE_DEVICES", "value": "0" }
             ]
         },
@@ -52,7 +68,7 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "miDebuggerPath": "/usr/local/cuda-12.1/bin/cuda-gdb", // 关键：指定 cuda-gdb
+            "miDebuggerPath": "/usr/local/cuda-12.4/bin/cuda-gdb", // 关键：指定 cuda-gdb
             "setupCommands": [
                 {
                     "description": "Enable pretty-printing for gdb",
