@@ -52,14 +52,16 @@ Mat preprocess(const Mat& img, int input_w, int input_h, float& scale, int& pad_
     resize(img, resized, Size(new_w, new_h));
     Mat padded(input_h, input_w, CV_8UC3, Scalar(114, 114, 114));
     resized.copyTo(padded(Rect(pad_w, pad_h, new_w, new_h)));
-
+    imwrite("/work/cuda/yolo8Test/cpp/temp1.jpg", padded);
     // BGR -> RGB
     cvtColor(padded, padded, COLOR_BGR2RGB);
+    imwrite("/work/cuda/yolo8Test/cpp/temp2.jpg", padded);
     padded.convertTo(padded, CV_32F, 1.0f / 255.0f);
+    imwrite("/work/cuda/yolo8Test/cpp/temp3.jpg", padded);
 
     // ✅✅✅ 关键：HWC -> CHW（必须加！！！）
     vector<Mat> channels(3);
-    split(padded, channels);
+    split(padded, channels);//3通道变1通道，每个通道都是HWC格式的单通道图像，高度和宽度不变，将3个单通道叠加起来，高度就变为了640*3
     Mat chw;
     vconcat(channels[0], channels[1], chw);//RGBRGBRGB->RRRGGGBBB也就实现了HWC -> CHW
     vconcat(chw, channels[2], chw);
@@ -197,6 +199,7 @@ int main() {
     const string engine_path = "/work/cuda/yolo8Test/cpp/yolov8n_cpp.engine";
     const string img_path = "/work/cuda/yolo8Test/py/bus.jpg";
     const string save_path = "/work/cuda/yolo8Test/cpp/result.jpg";
+    const string temp_path = "/work/cuda/yolo8Test/cpp/temp.jpg";
 
     // 1. 构建/加载TensorRT引擎
     buildEngine(engine_path, onnx_path);
@@ -222,7 +225,7 @@ int main() {
     float scale = 1.0f;
     int pad_w = 0, pad_h = 0;
     Mat input = preprocess(img, input_w, input_h, scale, pad_w, pad_h);
-
+    imwrite(temp_path, input);//此时已经归一化，数据像素都在0-1之间了，保存的图片会很暗，正常的
     // 4. 分配显存+数据传输
     void* buffers[2];
     const size_t input_size = 3 * input_w * input_h * sizeof(float);
