@@ -39,6 +39,6 @@ target_link_libraries(preprocess_test
     ${CUDA_LIBRARIES}
 )
 
-target_compile_options(preprocess_test PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:-G -O0>
-)
+# target_compile_options(preprocess_test PRIVATE
+#     $<$<COMPILE_LANGUAGE:CUDA>:-G -O0>
+# )

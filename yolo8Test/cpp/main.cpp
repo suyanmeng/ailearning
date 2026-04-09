@@ -151,6 +151,7 @@ void drawDetections(Mat& img, const vector<Detection>& detections) {
     for (const auto& det : detections) {
         // 画绿色检测框
         rectangle(img, Point(det.x1, det.y1), Point(det.x2, det.y2), Scalar(0, 255, 0), 2);
+        cout<<det.x1<<','<<det.y1<<','<<det.x2<<','<<det.y2<<endl;
         // 画标签+置信度（带背景框，文字清晰）
         string label = format("%s %.2f", COCO_NAMES[det.class_id].c_str(), det.conf);
         int baseline = 0;
@@ -167,30 +168,30 @@ void buildEngine(const string& engine_path, const string onnx_path)
     ifstream f(engine_path);
     if (!f.good()) {
         cout << "引擎不存在，开始从ONNX构建..." << endl;
-        IBuilder* builder = createInferBuilder(gLogger);
-        INetworkDefinition* network = builder->createNetworkV2(1U << static_cast<uint32_t>(NetworkDefinitionCreationFlag::kEXPLICIT_BATCH));
-        nvonnxparser::IParser* parser = nvonnxparser::createParser(*network, gLogger);
 
+        // ==================== TRT10 正确写法 ====================
+        auto builder = createInferBuilder(gLogger);
+        auto network = builder->createNetworkV2(0U);  // TRT10 不需要 kEXPLICIT_BATCH
+        auto parser = nvonnxparser::createParser(*network, gLogger);
+        auto config = builder->createBuilderConfig();
+
+        // 读取 ONNX
         ifstream onnx_file(onnx_path, ios::binary);
         vector<char> onnx_buf((istreambuf_iterator<char>(onnx_file)), istreambuf_iterator<char>());
         parser->parse(onnx_buf.data(), onnx_buf.size());
 
-        IBuilderConfig* config = builder->createBuilderConfig();
+        // 配置
         config->setMemoryPoolLimit(MemoryPoolType::kWORKSPACE, 4ULL << 30);
         config->setFlag(BuilderFlag::kFP16);
 
-        ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
-        IHostMemory* serialized = engine->serialize();
+        // ==================== TRT10 关键 API：直接序列化，不返回 engine ====================
+        IHostMemory* serialized = builder->buildSerializedNetwork(*network, *config);
 
+        // 保存引擎
         ofstream engine_file(engine_path, ios::binary);
         engine_file.write(reinterpret_cast<char*>(serialized->data()), serialized->size());
+        engine_file.close();
 
-        serialized->destroy();
-        engine->destroy();
-        config->destroy();
-        parser->destroy();
-        network->destroy();
-        builder->destroy();
         cout << "引擎构建完成！" << endl;
     }
 }
@@ -213,7 +214,7 @@ int main() {
     engine_file.read(engine_buf.data(), engine_size);
 
     IRuntime* runtime = createInferRuntime(gLogger);//工厂 创建 TensorRT 运行时环境(日志、资源)
-    ICudaEngine* engine = runtime->deserializeCudaEngine(engine_buf.data(), engine_size, nullptr);//机器 把引擎从内存加载到 GPU
+    ICudaEngine* engine = runtime->deserializeCudaEngine(engine_buf.data(), engine_size);//机器 把引擎从内存加载到 GPU
     IExecutionContext* ctx = engine->createExecutionContext();//工人 负责执行推理，可创建多个用来并行
 
     // 3. 读取图片+预处理
@@ -268,9 +269,5 @@ int main() {
     // 9. 资源释放
     cudaFree(buffers[0]);
     cudaFree(buffers[1]);
-    ctx->destroy();
-    engine->destroy();
-    runtime->destroy();
-
     return 0;
 }
