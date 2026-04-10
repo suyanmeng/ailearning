@@ -83,6 +83,7 @@ Mat preprocess(const Mat& img, int input_w, int input_h, float& scale, int& pad_
 void postprocess(const float* output, const int input_w, const int input_h,
                   const float scale, const int pad_w, const int pad_h,
                   vector<Detection>& detections, float conf_thresh = 0.25f, float nms_thresh = 0.45f) {
+    cout<<input_w<<','<<input_h<<','<<scale<<','<<pad_w<<','<<pad_h<<endl;
     // 打印前10个框的坐标和置信度
     cout << "调试：前10个框的输出值：" << endl;
     for (int i = 0; i < 10; i++) {
@@ -205,6 +206,33 @@ void buildEngine(const string& engine_path, const string onnx_path)
         cout << "引擎构建完成！" << endl;
     }
 }
+void calculate_scale_pad(int src_w, int src_h, int dst_w, int dst_h, 
+                         float& scale, int& pad_w, int& pad_h) {
+    scale = min((float)dst_w / src_w, (float)dst_h / src_h);
+    int new_w = (int)(src_w * scale);
+    int new_h = (int)(src_h * scale);
+    pad_w = (dst_w - new_w) / 2;
+    pad_h = (dst_h - new_h) / 2;
+}
+
+void debugPreprocess(int dst_h,int dst_w,float* h_dst)
+{
+    cv::Mat output_img(dst_h, dst_w, CV_32FC3);//32位浮点型3通道
+    for (int c = 0; c < 3; ++c) {
+        for (int h = 0; h < dst_h; ++h) {
+            for (int w = 0; w < dst_w; ++w) {
+                float val = h_dst[c * dst_w * dst_h + h * dst_w + w];
+                if (c == 0) output_img.at<cv::Vec3f>(h, w)[2] = val; // R
+                else if (c == 1) output_img.at<cv::Vec3f>(h, w)[1] = val; // G
+                else output_img.at<cv::Vec3f>(h, w)[0] = val; // B
+            }
+        }
+    }
+    cv::Mat output_vis;
+    output_img.convertTo(output_vis, CV_8UC3, 255.0);//8位无符号型3通道，计算要用浮点，写图片要用整形
+    cv::imwrite("/work/cuda/yolo8Test/cuda/output/tempp.jpg", output_vis);
+    printf("Saved output_preprocessed.jpg\n");
+}
 
 int main() {
     const string cur_dir = filesystem::current_path().parent_path();
@@ -236,11 +264,12 @@ int main() {
     }
     const int input_w = 640, input_h = 640;
     float scale = 1.0f;
-    int pad_w = 0, pad_h = 0;
+    int pad_w = 80, pad_h = 0;
     //Mat input = preprocess(img, input_w, input_h, scale, pad_w, pad_h);
-
+    
     //预处理
     int src_w = img.cols, src_h = img.rows;
+    calculate_scale_pad(src_w, src_h, input_w, input_h, scale, pad_w, pad_h);
     printf("Source: %dx%d, Target: %dx%d\n", src_w, src_h, input_w, input_h);
 
     uint8_t* d_src = nullptr;
@@ -258,14 +287,15 @@ int main() {
     CUDA_CHECK(cudaStreamCreate(&stream));
     launch_preprocess_kernel(d_src, src_w, src_h, (float*)buffers[0], input_w, input_h, true, stream);
     CUDA_CHECK(cudaStreamSynchronize(stream));
-
-
+    float* h_dst = (float*)malloc(input_size);
+    CUDA_CHECK(cudaMemcpy(h_dst, buffers[0], input_size, cudaMemcpyDeviceToHost));
+    debugPreprocess(input_h,input_w,h_dst);
     // imwrite(temp_path, input);//此时已经归一化，数据像素都在0-1之间了，保存的图片会很暗，正常的
     // 4. 分配显存+数据传输
 
-    for(int i = 0; i < 10; i++) { // 预热10次，稳定性能
-        ctx->executeV2(buffers);
-    }
+    // for(int i = 0; i < 10; i++) { // 预热10次，稳定性能
+    //     ctx->executeV2(buffers);
+    // }
     
     // 5. 推理计时
     auto t1 = chrono::high_resolution_clock::now();
@@ -278,7 +308,7 @@ int main() {
 
     // 6. 推理结果回传CPU
     vector<float> output(84 * 8400);
-    cudaMemcpy(output.data(), buffers[1], output_size, cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(output.data(), buffers[1], output_size, cudaMemcpyDeviceToHost));
 
     // 7. 后处理+画框
     vector<Detection> detections;

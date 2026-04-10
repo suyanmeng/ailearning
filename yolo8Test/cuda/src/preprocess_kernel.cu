@@ -37,7 +37,7 @@ __global__ void bgr_to_rgb_norm_resize_kernel(
         src_x = (w - pad_x) * scale_x;
         src_y = (h - pad_y) * scale_y;
         if (src_x < 0 || src_x >= src_w || src_y < 0 || src_y >= src_h) {
-            dst[c * dst_w * dst_h + h * dst_w + w] = 0.0f;
+            dst[c * dst_w * dst_h + h * dst_w + w] = 114.0f / 255.0f;
             return;
         }
     } else {
