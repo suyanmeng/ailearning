@@ -74,6 +74,7 @@ void postprocess(const float* output, const int input_w, const int input_h,
                   const float scale, const int pad_w, const int pad_h,
                   vector<Detection>& detections, float conf_thresh = 0.25f, float nms_thresh = 0.45f) {
     // 打印前10个框的坐标和置信度
+    cout<<input_w<<','<<input_h<<','<<scale<<','<<pad_w<<','<<pad_h<<endl;
     cout << "调试：前10个框的输出值：" << endl;
     for (int i = 0; i < 10; i++) {
         cout << "  框" << i << ": cx=" << output[i] 
@@ -226,7 +227,11 @@ int main() {
     const int input_w = 640, input_h = 640;
     float scale = 1.0f;
     int pad_w = 0, pad_h = 0;
+    auto t3 = chrono::high_resolution_clock::now();
     Mat input = preprocess(img, input_w, input_h, scale, pad_w, pad_h);
+    auto t4 = chrono::high_resolution_clock::now();
+    float ms1 = chrono::duration<float, milli>(t4 - t3).count();
+    cout << "\n✅ cpu预处理完成！耗时：" << ms1<< " ms" << endl;
     imwrite(temp_path, input);//此时已经归一化，数据像素都在0-1之间了，保存的图片会很暗，正常的
     // 4. 分配显存+数据传输
     void* buffers[2];

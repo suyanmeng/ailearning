@@ -2,8 +2,9 @@ cmake_minimum_required(VERSION 3.10)
 project(yolov8_trt)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_BUILD_TYPE Debug)
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -g -G -arch=sm_89)
+# set(CMAKE_BUILD_TYPE Debug)
+# set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -g -G -arch=sm_89)
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -arch=sm_89)
 # CUDA
 find_package(CUDA REQUIRED)
 

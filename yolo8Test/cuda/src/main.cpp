@@ -285,17 +285,20 @@ int main() {
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));
+    auto t3 = chrono::high_resolution_clock::now();
     launch_preprocess_kernel(d_src, src_w, src_h, (float*)buffers[0], input_w, input_h, true, stream);
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    float* h_dst = (float*)malloc(input_size);
-    CUDA_CHECK(cudaMemcpy(h_dst, buffers[0], input_size, cudaMemcpyDeviceToHost));
-    debugPreprocess(input_h,input_w,h_dst);
-    // imwrite(temp_path, input);//此时已经归一化，数据像素都在0-1之间了，保存的图片会很暗，正常的
+    auto t4 = chrono::high_resolution_clock::now();
+    float ms1 = chrono::duration<float, milli>(t4 - t3).count();
+    cout << "\n✅ cuda预处理完成！耗时：" << ms1<< " ms" << endl;
+    // float* h_dst = (float*)malloc(input_size);debug
+    // CUDA_CHECK(cudaMemcpy(h_dst, buffers[0], input_size, cudaMemcpyDeviceToHost));
+    // debugPreprocess(input_h,input_w,h_dst);
     // 4. 分配显存+数据传输
 
-    // for(int i = 0; i < 10; i++) { // 预热10次，稳定性能
-    //     ctx->executeV2(buffers);
-    // }
+    for(int i = 0; i < 10; i++) { // 预热10次，稳定性能
+        ctx->executeV2(buffers);
+    }
     
     // 5. 推理计时
     auto t1 = chrono::high_resolution_clock::now();
