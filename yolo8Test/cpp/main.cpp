@@ -129,7 +129,7 @@ void postprocess(const float* output, const int input_w, const int input_h,
         scores.push_back(max_conf);
         class_ids.push_back(class_id);
     }
-
+    cout << "有效框数量（NMS前）：" << boxes.size() << endl;
     // 7. NMS非极大值抑制，去除重复框
     vector<int> indices;
     dnn::NMSBoxes(boxes, scores, conf_thresh, nms_thresh, indices);

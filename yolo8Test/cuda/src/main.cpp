@@ -54,7 +54,6 @@ const vector<string> COCO_NAMES = {
     "vase",          "scissors",     "teddy bear",
     "hair drier",    "toothbrush"};
 
-
 class Logger : public ILogger {
     void log(Severity severity, const char* msg) noexcept override {
         if (severity <= Severity::kERROR) printf("[TRT ERROR] %s\n", msg);
@@ -290,7 +289,7 @@ int main() {
         engine->createExecutionContext();  // 工人
                                            // 负责执行推理，可创建多个用来并行
 
-    // 3. 读取图片+预处理
+    // 3. 读取图片
     Mat img = imread(img_path);
     if (img.empty()) {
         cerr << "❌ 图片读取失败！请检查路径：" << img_path << endl;
@@ -299,9 +298,9 @@ int main() {
     const int input_w = 640, input_h = 640;
     float scale = 1.0f;
     int pad_w = 80, pad_h = 0;
-    // Mat input = preprocess(img, input_w, input_h, scale, pad_w, pad_h);
 
-    // 预处理
+    // 4.cuda预处理
+    // Mat input = preprocess(img, input_w, input_h, scale, pad_w, pad_h);//cpu
     int src_w = img.cols, src_h = img.rows;
     calculate_scale_pad(src_w, src_h, input_w, input_h, scale, pad_w, pad_h);
     printf("Source: %dx%d, Target: %dx%d\n", src_w, src_h, input_w, input_h);
@@ -319,44 +318,43 @@ int main() {
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));
-    auto t3 = chrono::high_resolution_clock::now();
+    auto t1 = chrono::high_resolution_clock::now();
     launch_preprocess_kernel(d_src, src_w, src_h, (float*)buffers[0], input_w,
                              input_h, true, stream);
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    auto t4 = chrono::high_resolution_clock::now();
-    float ms1 = chrono::duration<float, milli>(t4 - t3).count();
-    cout << "\n✅ cuda预处理完成！耗时：" << ms1 << " ms" << endl;
+    auto t2 = chrono::high_resolution_clock::now();
+    float ms1 = chrono::duration<float, milli>(t2 - t1).count();
+
     // float* h_dst = (float*)malloc(input_size);debug
     // CUDA_CHECK(cudaMemcpy(h_dst, buffers[0], input_size,
     // cudaMemcpyDeviceToHost)); debugPreprocess(input_h,input_w,h_dst);
-    // 4. 分配显存+数据传输
 
-    for (int i = 0; i < 10; i++) {  // 预热10次，稳定性能
-        ctx->executeV2(buffers);
-    }
-
-    // 5. 推理计时
-    auto t1 = chrono::high_resolution_clock::now();
+    // 5. 推理
+    t1 = chrono::high_resolution_clock::now();
     for (int i = 0; i < 100; i++) {  // 预热10次，稳定性能
         ctx->executeV2(buffers);
     }
     // ctx->enqueueV2(buffers);异步版本，需配合cudaStreamSynchronize同步
-    auto t2 = chrono::high_resolution_clock::now();
-    float ms = chrono::duration<float, milli>(t2 - t1).count();
+    t2 = chrono::high_resolution_clock::now();
+    auto ms2 = chrono::duration<float, milli>(t2 - t1).count();
+
+    // 6. cuda后处理
     const int MAX_BOXES = 100;
     Box* d_boxes;
     int* d_box_num;
     cudaMalloc(&d_boxes, MAX_BOXES * sizeof(Box));
     cudaMalloc(&d_box_num, sizeof(int));
+    t1 = chrono::high_resolution_clock::now();
     launch_postprocess_kernel((float*)buffers[1],   // 模型输出地址（GPU）
-                       8400,                 // num_anchors
-                       80,                   // num_classes
-                       0.25f,                // conf
-                       0.45f,                // iou
-                       scale, pad_w, pad_h,  // 你之前算好的
-                       src_w, src_h,         // 原图宽高
-                       d_boxes, d_box_num);
-
+                              8400,                 // num_anchors
+                              80,                   // num_classes
+                              0.25f,                // conf
+                              0.45f,                // iou
+                              scale, pad_w, pad_h,  // 你之前算好的
+                              src_w, src_h,         // 原图宽高
+                              d_boxes, d_box_num);
+    t2 = chrono::high_resolution_clock::now();
+    auto ms3 = chrono::duration<float, milli>(t2 - t1).count();
     // 6. 推理结果回传CPU
     // vector<float> output(84 * 8400);
     // CUDA_CHECK(cudaMemcpy(output.data(), buffers[1], output_size,
@@ -364,18 +362,20 @@ int main() {
     int box_num = 0;
     cudaMemcpy(&box_num, d_box_num, sizeof(int), cudaMemcpyDeviceToHost);
     vector<Box> detections(box_num);
-    cudaMemcpy(detections.data(), d_boxes, box_num * sizeof(Box), cudaMemcpyDeviceToHost);
+    cudaMemcpy(detections.data(), d_boxes, box_num * sizeof(Box),
+               cudaMemcpyDeviceToHost);
     cout << "检测到有效框数量（GPU后处理后）：" << box_num << endl;
-    // 7. 后处理+画框
-    // postprocess(output.data(), input_w, input_h, scale, pad_w, pad_h,
-    // detections);
+    // 7. 画框
+    // postprocess(output.data(), input_w, input_h, scale, pad_w,
+    // pad_h,detections);//cpu后处理
     drawDetections(img, detections);
 
     // 8. 保存结果
     imwrite(save_path, img);
-
-    cout << "\n✅ 推理完成！耗时：" << ms << " ms" << endl;
-    //cout << "✅ 检测到有效框数量：" << detections.size() << endl;
+    cout << "✅ cuda预处理完成！耗时：" << ms1 << " ms" << endl;
+    cout << "✅ 推理完成！耗时：" << ms2 << " ms" << endl;
+    cout << "✅ cuda预处理完成！耗时：" << ms3 << " ms" << endl;
+    cout << "✅ 检测到有效框数量：" << detections.size() << endl;
     cout << "✅ 结果已保存至：" << save_path << endl;
 
     // 9. 资源释放

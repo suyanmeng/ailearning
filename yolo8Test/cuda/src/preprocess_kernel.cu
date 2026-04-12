@@ -1,14 +1,15 @@
 #include <cuda_runtime.h>
-#include <iostream>
 #include <math.h>
+
+#include <iostream>
+
 #include "preprocess.h"
 
 // 双线性插值 + BGR->RGB + 归一化 + HWC->CHW 融合Kernel
-__global__ void bgr_to_rgb_norm_resize_kernel(
-    const uint8_t* src, int src_w, int src_h,
-    float* dst, int dst_w, int dst_h,
-    bool keep_aspect_ratio) {
-
+__global__ void bgr_to_rgb_norm_resize_kernel(const uint8_t* src, int src_w,
+                                              int src_h, float* dst, int dst_w,
+                                              int dst_h,
+                                              bool keep_aspect_ratio) {
     int w = blockIdx.x * blockDim.x + threadIdx.x;
     int h = blockIdx.y * blockDim.y + threadIdx.y;
     int c = blockIdx.z * blockDim.z + threadIdx.z;  // 0:R,1:G,2:B
@@ -65,23 +66,33 @@ __global__ void bgr_to_rgb_norm_resize_kernel(
     int idx10 = (y1 * src_w + x0) * 3;
     int idx11 = (y1 * src_w + x1) * 3;
 
-    uint8_t v00_b = src[idx00 + 0], v00_g = src[idx00 + 1], v00_r = src[idx00 + 2];
-    uint8_t v01_b = src[idx01 + 0], v01_g = src[idx01 + 1], v01_r = src[idx01 + 2];
-    uint8_t v10_b = src[idx10 + 0], v10_g = src[idx10 + 1], v10_r = src[idx10 + 2];
-    uint8_t v11_b = src[idx11 + 0], v11_g = src[idx11 + 1], v11_r = src[idx11 + 2];
+    uint8_t v00_b = src[idx00 + 0], v00_g = src[idx00 + 1],
+            v00_r = src[idx00 + 2];
+    uint8_t v01_b = src[idx01 + 0], v01_g = src[idx01 + 1],
+            v01_r = src[idx01 + 2];
+    uint8_t v10_b = src[idx10 + 0], v10_g = src[idx10 + 1],
+            v10_r = src[idx10 + 2];
+    uint8_t v11_b = src[idx11 + 0], v11_g = src[idx11 + 1],
+            v11_r = src[idx11 + 2];
 
-    float v_b = dy1 * dx1 * v00_b + dy1 * dx * v01_b + dy * dx1 * v10_b + dy * dx * v11_b;
-    float v_g = dy1 * dx1 * v00_g + dy1 * dx * v01_g + dy * dx1 * v10_g + dy * dx * v11_g;
-    float v_r = dy1 * dx1 * v00_r + dy1 * dx * v01_r + dy * dx1 * v10_r + dy * dx * v11_r;
+    float v_b = dy1 * dx1 * v00_b + dy1 * dx * v01_b + dy * dx1 * v10_b +
+                dy * dx * v11_b;
+    float v_g = dy1 * dx1 * v00_g + dy1 * dx * v01_g + dy * dx1 * v10_g +
+                dy * dx * v11_g;
+    float v_r = dy1 * dx1 * v00_r + dy1 * dx * v01_r + dy * dx1 * v10_r +
+                dy * dx * v11_r;
 
     v_b = v_b / 255.0f;
     v_g = v_g / 255.0f;
     v_r = v_r / 255.0f;
 
     float out_val;
-    if (c == 0) out_val = v_r;      // 输出通道0: R
-    else if (c == 1) out_val = v_g; // 输出通道1: G
-    else out_val = v_b;              // 输出通道2: B
+    if (c == 0)
+        out_val = v_r;  // 输出通道0: R
+    else if (c == 1)
+        out_val = v_g;  // 输出通道1: G
+    else
+        out_val = v_b;  // 输出通道2: B
 
     dst[c * dst_w * dst_h + h * dst_w + w] = out_val;
 }
@@ -89,8 +100,7 @@ __global__ void bgr_to_rgb_norm_resize_kernel(
 // 封装函数：启动 Kernel
 void launch_preprocess_kernel(const uint8_t* src, int src_w, int src_h,
                               float* dst, int dst_w, int dst_h,
-                              bool keep_aspect_ratio,
-                              cudaStream_t stream) {
+                              bool keep_aspect_ratio, cudaStream_t stream) {
     dim3 threads(16, 16, 1);
     dim3 blocks((dst_w + 15) / 16, (dst_h + 15) / 16, 3);
 

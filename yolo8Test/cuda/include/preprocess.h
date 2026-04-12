@@ -13,7 +13,6 @@
 //   stream     : CUDA 流
 void launch_preprocess_kernel(const uint8_t* src, int src_w, int src_h,
                               float* dst, int dst_w, int dst_h,
-                              bool keep_aspect_ratio,
-                              cudaStream_t stream = 0);
+                              bool keep_aspect_ratio, cudaStream_t stream = 0);
 
-#endif // PREPROCESS_H
+#endif  // PREPROCESS_H
