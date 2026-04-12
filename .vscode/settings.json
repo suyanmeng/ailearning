@@ -1,26 +1,31 @@
 {
     // 文件关联：让 VSCode 把 .cu / .cuh 当作 C++
     "files.associations": {
-        "*.cu": "cuda",
-        "*.cuh": "cuda",
-        "cuda_runtime.h": "cuda"
+        "*.cu": "cuda-cpp",
+        "*.cuh": "cuda-cpp",
+        "cuda_runtime.h": "cuda-cpp"
     },
-
     // C/C++ 插件配置
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
     "C_Cpp.intelliSenseEngine": "default",
-
     // 编辑器基础
     "editor.suggest.snippetsPreventQuickSuggestions": false,
     "editor.suggestOnTriggerCharacters": true,
     "editor.wordBasedSuggestions": "matchingDocuments",
-
     // 缩进/编码
     "editor.tabSize": 4,
     "editor.insertSpaces": true,
     "files.encoding": "utf8",
-
     // 关闭不必要提示
     "workbench.startupEditor": "none",
-    "cmake.configureOnOpen": false
+    "cmake.configureOnOpen": false,
+
+    //将 .cu 文件视为 C++ 进行格式化
+    "[cuda-cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools"
+    },
+    // 强制指定 C/C++ 扩展使用 clang-format
+    "C_Cpp.formatting": "clangFormat",
+    // 定义代码风格，这里以 Google 风格为例，缩进4空格
+    "C_Cpp.clang_format_style": "{ BasedOnStyle: Google, IndentWidth: 4 }"
 }

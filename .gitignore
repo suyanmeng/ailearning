@@ -3,3 +3,6 @@ build
 *.pt
 *.onnx
 *.engine
+*.jpg
+*.mp4
+*.png
