@@ -430,6 +430,9 @@ int main() {
 
 
 #include "trtengine.h"
+
+#define VEDIO_0
+#ifndef VEDIO_0
 int main() {
     const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
     const string engine_path =
@@ -458,5 +461,41 @@ int main() {
         }
     }
 
+    return 0;
+}
+#endif
+int main() {
+    const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
+    const string engine_path =
+        "/work/cuda/yolo8Test/resource/yolov8n_cpp.engine";
+    const string mv_path = "/work/cuda/yolo8Test/resource/demo0.mp4";
+    const string save_mv_path = "/work/cuda/yolo8Test/cuda/output/demo0.mp4";
+    trtEngine engine(engine_path, onnx_path);
+
+    VideoCapture cap(mv_path);
+    if (!cap.isOpened()) {
+        printf("打开视频失败\n");
+        return -1;
+    }
+    // 获取视频信息
+    int width = static_cast<int>(cap.get(CAP_PROP_FRAME_WIDTH));
+    int height = static_cast<int>(cap.get(CAP_PROP_FRAME_HEIGHT));
+    double fps = cap.get(CAP_PROP_FPS);
+    // 编码器：mp4
+    int fourcc = VideoWriter::fourcc('m', 'p', '4', 'v');
+    VideoWriter writer(save_mv_path, fourcc, fps, Size(width, height));
+
+    Mat frame;
+    while (cap.read(frame)) {
+        if (frame.empty()) break;
+        vector<Box> detections;
+        detections = engine.infer(frame);
+        engine.drawDetections(frame, detections);
+        writer.write(frame);
+    }
+    cap.release();
+    writer.release();
+    printf("视频处理完成：%s\n", save_mv_path.c_str());
+    return 0;
     return 0;
 }
