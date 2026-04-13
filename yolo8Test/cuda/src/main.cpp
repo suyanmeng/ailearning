@@ -4,7 +4,8 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <vector>
-
+#define CANCLE_0
+#ifndef CANCLE_0
 #include "NvInfer.h"
 #include "NvOnnxParser.h"
 #include "postprocess.h"
@@ -262,6 +263,47 @@ void debugPreprocess(int dst_h, int dst_w, float* h_dst) {
     printf("Saved output_preprocessed.jpg\n");
 }
 
+void printEngineInfo10x(ICudaEngine* engine, IExecutionContext* ctx) {
+    if (!engine || !ctx) return;
+
+    // 1. 获取IO张量总数
+    int nbIOTensors = engine->getNbIOTensors();
+    std::cout << "IO张量总数: " << nbIOTensors << "\n";
+
+    for (int i = 0; i < nbIOTensors; ++i) {
+        // 2. 获取张量名称（核心变化：用name代替index）
+        const char* name = engine->getIOTensorName(i);
+
+        // 3. 判断输入/输出
+        TensorIOMode mode = engine->getTensorIOMode(name);
+        bool isInput = (mode == TensorIOMode::kINPUT);
+        const char* ioStr = isInput ? "输入" : "输出";
+
+        // 4. 获取数据类型
+        nvinfer1::DataType dtype = engine->getTensorDataType(name);
+        const char* dtypeStr = "未知";
+        if (dtype == nvinfer1::DataType::kFLOAT) dtypeStr = "FP32";
+        if (dtype == nvinfer1::DataType::kHALF)  dtypeStr = "FP16";
+        if (dtype == nvinfer1::DataType::kINT8)  dtypeStr = "INT8";
+
+        // 5. 获取形状（必须从context获取！）
+        Dims dims = ctx->getTensorShape(name);
+
+        // 打印
+        std::cout << "----------------------------------------\n";
+        std::cout << "索引: " << i << "\n";
+        std::cout << "名称: " << name << "\n";
+        std::cout << "类型: " << ioStr << "\n";
+        std::cout << "数据类型: " << dtypeStr << "\n";
+        std::cout << "形状: ";
+        for (int j = 0; j < dims.nbDims; j++) {
+            std::cout << dims.d[j] << " ";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "----------------------------------------\n";
+}
+
 int main() {
     const string cur_dir = filesystem::current_path().parent_path();
     const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
@@ -288,7 +330,7 @@ int main() {
     IExecutionContext* ctx =
         engine->createExecutionContext();  // 工人
                                            // 负责执行推理，可创建多个用来并行
-
+        printEngineInfo10x(engine, ctx);  // 调试：打印引擎输入输出信息
     // 3. 读取图片
     Mat img = imread(img_path);
     if (img.empty()) {
@@ -316,12 +358,10 @@ int main() {
     CUDA_CHECK(cudaMalloc(&buffers[1], output_size));
     CUDA_CHECK(cudaMemcpy(d_src, img.data, src_bytes, cudaMemcpyHostToDevice));
 
-    cudaStream_t stream;
-    CUDA_CHECK(cudaStreamCreate(&stream));
     auto t1 = chrono::high_resolution_clock::now();
     launch_preprocess_kernel(d_src, src_w, src_h, (float*)buffers[0], input_w,
-                             input_h, true, stream);
-    CUDA_CHECK(cudaStreamSynchronize(stream));
+                             input_h, scale, pad_w, pad_h, true);
+    // CUDA_CHECK(cudaStreamSynchronize(stream));
     auto t2 = chrono::high_resolution_clock::now();
     float ms1 = chrono::duration<float, milli>(t2 - t1).count();
 
@@ -374,15 +414,49 @@ int main() {
     imwrite(save_path, img);
     cout << "✅ cuda预处理完成！耗时：" << ms1 << " ms" << endl;
     cout << "✅ 推理完成！耗时：" << ms2 << " ms" << endl;
-    cout << "✅ cuda预处理完成！耗时：" << ms3 << " ms" << endl;
+    cout << "✅ cuda后处理完成！耗时：" << ms3 << " ms" << endl;
     cout << "✅ 检测到有效框数量：" << detections.size() << endl;
     cout << "✅ 结果已保存至：" << save_path << endl;
 
     // 9. 资源释放
-    cudaStreamDestroy(stream);
+    //cudaStreamDestroy(stream);
     cudaFree(d_src);
     cudaFree(buffers[0]);
     cudaFree(buffers[1]);
+
+    return 0;
+}
+#endif
+
+
+#include "trtengine.h"
+int main() {
+    const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
+    const string engine_path =
+        "/work/cuda/yolo8Test/resource/yolov8n_cpp.engine";
+    const string img_path = "/work/cuda/yolo8Test/picture/000000000077.jpg";
+    const string save_dir = "/work/cuda/yolo8Test/cuda/output/";
+    const string img_dir = "/work/cuda/yolo8Test/picture/";
+    if (!filesystem::exists(img_dir)) {
+        std::cerr << "目录不存在: " << img_dir << std::endl;
+        return -1;
+    }
+    trtEngine engine(engine_path, onnx_path);
+    for (auto& entry : filesystem::directory_iterator(img_dir)) {
+        if (entry.is_regular_file()) {
+            Mat img = imread(entry.path().string());
+            if (img.empty()) {
+                cerr << "❌ 图片读取失败！请检查路径：" << entry.path().string() << endl;
+                return -1;
+            }
+            vector<Box> detections;
+            detections = engine.infer(img);
+            engine.drawDetections(img, detections);
+            string save_path = save_dir + entry.path().filename().string();
+            cout << "保存路径: " << save_path << endl;
+            imwrite(save_path, img);
+        }
+    }
 
     return 0;
 }

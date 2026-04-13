@@ -8,7 +8,7 @@
 // 双线性插值 + BGR->RGB + 归一化 + HWC->CHW 融合Kernel
 __global__ void bgr_to_rgb_norm_resize_kernel(const uint8_t* src, int src_w,
                                               int src_h, float* dst, int dst_w,
-                                              int dst_h,
+                                              int dst_h,float scale, int pad_w, int pad_h,
                                               bool keep_aspect_ratio) {
     int w = blockIdx.x * blockDim.x + threadIdx.x;
     int h = blockIdx.y * blockDim.y + threadIdx.y;
@@ -17,15 +17,16 @@ __global__ void bgr_to_rgb_norm_resize_kernel(const uint8_t* src, int src_w,
     if (w >= dst_w || h >= dst_h || c >= 3) return;
 
     // 计算缩放因子和填充偏移（letterbox）
-    float scale_x, scale_y, pad_x = 0, pad_y = 0;
+    float scale_x, scale_y;
+    // float pad_w = 0, pad_h = 0;
     if (keep_aspect_ratio) {
-        float scale_w = (float)dst_w / src_w;
-        float scale_h = (float)dst_h / src_h;
-        float scale = fminf(scale_w, scale_h);
+        // float scale_w = (float)dst_w / src_w;
+        // float scale_h = (float)dst_h / src_h;
+        // float scale = fminf(scale_w, scale_h);
         int new_w = (int)(src_w * scale);
         int new_h = (int)(src_h * scale);
-        pad_x = (dst_w - new_w) / 2.0f;
-        pad_y = (dst_h - new_h) / 2.0f;
+        // pad_w = (dst_w - new_w) / 2.0f;
+        // pad_h = (dst_h - new_h) / 2.0f;
         scale_x = (float)src_w / new_w;
         scale_y = (float)src_h / new_h;
     } else {
@@ -35,8 +36,8 @@ __global__ void bgr_to_rgb_norm_resize_kernel(const uint8_t* src, int src_w,
 
     float src_x, src_y;
     if (keep_aspect_ratio) {
-        src_x = (w - pad_x) * scale_x;
-        src_y = (h - pad_y) * scale_y;
+        src_x = (w - pad_w) * scale_x;
+        src_y = (h - pad_h) * scale_y;
         if (src_x < 0 || src_x >= src_w || src_y < 0 || src_y >= src_h) {
             dst[c * dst_w * dst_h + h * dst_w + w] = 114.0f / 255.0f;
             return;
@@ -99,11 +100,11 @@ __global__ void bgr_to_rgb_norm_resize_kernel(const uint8_t* src, int src_w,
 
 // 封装函数：启动 Kernel
 void launch_preprocess_kernel(const uint8_t* src, int src_w, int src_h,
-                              float* dst, int dst_w, int dst_h,
-                              bool keep_aspect_ratio, cudaStream_t stream) {
+                              float* dst, int dst_w, int dst_h,float scale, int pad_w, int pad_h,
+                              bool keep_aspect_ratio) {
     dim3 threads(16, 16, 1);
     dim3 blocks((dst_w + 15) / 16, (dst_h + 15) / 16, 3);
 
-    bgr_to_rgb_norm_resize_kernel<<<blocks, threads, 0, stream>>>(
-        src, src_w, src_h, dst, dst_w, dst_h, keep_aspect_ratio);
+    bgr_to_rgb_norm_resize_kernel<<<blocks, threads>>>(
+        src, src_w, src_h, dst, dst_w, dst_h, scale, pad_w, pad_h, keep_aspect_ratio);
 }

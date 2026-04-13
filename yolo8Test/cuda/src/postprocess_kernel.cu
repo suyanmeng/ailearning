@@ -14,7 +14,7 @@ __global__ void decode_kernel(const float* output, int num_anchors,
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= num_anchors) return;
 
-    // 你自己的输出格式：[4, 80, 8400]
+    // 输出格式：[4+80, 8400]
     float cx = output[i];
     float cy = output[num_anchors + i];
     float w = output[2 * num_anchors + i];
