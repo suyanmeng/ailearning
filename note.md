@@ -27,7 +27,13 @@ Thread 最小调度单位：Warp（32 个 Thread 一组）
 分支分化会让 Warp 变慢，所以并行逻辑要尽量统一
 
 # 4.生成性能报告
-nsys profile --trace=cuda --cuda-memory-usage=true --stats=true -o naive_matmul_detailed ./matmul_naive
+nsys profile --trace-fork-before-exec=true --trace=cuda --cuda-memory-usage=true --cudabacktrace=true --stats=true -o naive_matmul_detailed ./matmul_naive
+nsys命令一直报错，SKIPPED: /tmp/nsys-report-1c78.sqlite does not contain CUDA kernel data.does not contain GPU memory data.核心原因是显卡驱动太新，要用新版本的nsys才能抓到数据，不能用cuda安装自带的
+ncu --set basic --section SpeedOfLight ./heavy_test
+ncu报错==ERROR== Failed to prepare kernel for profiling   Windows 端开了允许查看gpu计数权限，但是WSL2 内部的驱动模块参数还是默认的“禁止”。创建一个配置文件来强制开启权限
+echo "options nvidia NVreg_RestrictProfilingToAdminUsers=0" | sudo tee /etc/modprobe.d/nvidia-profiling.conf 重启wsl，恢复正常
+
+
 使用Nsightsystem查看占用时间比例，优先减小拷贝时间
 
 # 5.5大核心显存优化
