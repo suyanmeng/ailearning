@@ -12,10 +12,10 @@ find_package(CUDA REQUIRED)
 find_package(OpenCV REQUIRED)
 
 # TensorRT 路径（你已安装）
-include_directories(/usr/local/TensorRT-8.6.1.6/include)
+#include_directories(/usr/local/TensorRT-8.6.1.6/include)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
-link_directories(/usr/local/TensorRT-8.6.1.6/targets/x86_64-linux-gnu/lib)
+#link_directories(/usr/local/TensorRT-8.6.1.6/targets/x86_64-linux-gnu/lib)
 cuda_add_library(preprocess_kernel STATIC src/preprocess_kernel.cu)
 cuda_add_library(postprocess_kernel STATIC src/postprocess_kernel.cu)
 # 编译

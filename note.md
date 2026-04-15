@@ -33,6 +33,8 @@ ncu --set basic --section SpeedOfLight ./heavy_test
 ncu报错==ERROR== Failed to prepare kernel for profiling   Windows 端开了允许查看gpu计数权限，但是WSL2 内部的驱动模块参数还是默认的“禁止”。创建一个配置文件来强制开启权限
 echo "options nvidia NVreg_RestrictProfilingToAdminUsers=0" | sudo tee /etc/modprobe.d/nvidia-profiling.conf 重启wsl，恢复正常
 
+ncu --set full --kernel-name "matrixMulShared" ./
+ncu --set full --kernel-name "matrixMulShared" --export matrixMulShared_report ./share生成报告
 
 使用Nsightsystem查看占用时间比例，优先减小拷贝时间
 

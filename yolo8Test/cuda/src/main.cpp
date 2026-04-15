@@ -283,8 +283,8 @@ void printEngineInfo10x(ICudaEngine* engine, IExecutionContext* ctx) {
         nvinfer1::DataType dtype = engine->getTensorDataType(name);
         const char* dtypeStr = "未知";
         if (dtype == nvinfer1::DataType::kFLOAT) dtypeStr = "FP32";
-        if (dtype == nvinfer1::DataType::kHALF)  dtypeStr = "FP16";
-        if (dtype == nvinfer1::DataType::kINT8)  dtypeStr = "INT8";
+        if (dtype == nvinfer1::DataType::kHALF) dtypeStr = "FP16";
+        if (dtype == nvinfer1::DataType::kINT8) dtypeStr = "INT8";
 
         // 5. 获取形状（必须从context获取！）
         Dims dims = ctx->getTensorShape(name);
@@ -330,7 +330,7 @@ int main() {
     IExecutionContext* ctx =
         engine->createExecutionContext();  // 工人
                                            // 负责执行推理，可创建多个用来并行
-        printEngineInfo10x(engine, ctx);  // 调试：打印引擎输入输出信息
+    printEngineInfo10x(engine, ctx);       // 调试：打印引擎输入输出信息
     // 3. 读取图片
     Mat img = imread(img_path);
     if (img.empty()) {
@@ -419,7 +419,7 @@ int main() {
     cout << "✅ 结果已保存至：" << save_path << endl;
 
     // 9. 资源释放
-    //cudaStreamDestroy(stream);
+    // cudaStreamDestroy(stream);
     cudaFree(d_src);
     cudaFree(buffers[0]);
     cudaFree(buffers[1]);
@@ -428,11 +428,35 @@ int main() {
 }
 #endif
 
-
 #include "trtengine.h"
 
-#define VEDIO_0
-#ifndef VEDIO_0
+#define SINGLE_IMAGE
+#ifdef SINGLE_IMAGE
+int main() {
+    const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
+    const string engine_path =
+        "/work/cuda/yolo8Test/resource/yolov8n_cpp.engine";
+    const string img_path = "/work/cuda/yolo8Test/picture/000000000077.jpg";
+    const string save_path =
+        "/work/cuda/yolo8Test/cuda/output/000000000077.jpg";
+    trtEngine engine(engine_path, onnx_path);
+    Mat img = imread(img_path);
+    if (img.empty()) {
+        cerr << "❌ 图片读取失败！请检查路径：" << img_path
+             << endl;
+        return -1;
+    }
+    vector<Box> detections;
+    detections = engine.infer(img);
+    engine.drawDetections(img, detections);
+    cout << "保存路径: " << save_path << endl;
+    imwrite(save_path, img);
+
+    return 0;
+}
+#endif
+// #define MULTI_IMAGE
+#ifdef MULTI_IMAGE
 int main() {
     const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
     const string engine_path =
@@ -449,7 +473,8 @@ int main() {
         if (entry.is_regular_file()) {
             Mat img = imread(entry.path().string());
             if (img.empty()) {
-                cerr << "❌ 图片读取失败！请检查路径：" << entry.path().string() << endl;
+                cerr << "❌ 图片读取失败！请检查路径：" << entry.path().string()
+                     << endl;
                 return -1;
             }
             vector<Box> detections;
@@ -464,6 +489,8 @@ int main() {
     return 0;
 }
 #endif
+// #define VEDIO_0
+#ifdef VEDIO_0
 int main() {
     const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
     const string engine_path =
@@ -499,3 +526,4 @@ int main() {
     return 0;
     return 0;
 }
+#endif

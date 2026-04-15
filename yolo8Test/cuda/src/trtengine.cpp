@@ -12,7 +12,7 @@ trtEngine::trtEngine(const std::string& engine_path,
                      const std::string& onnx_path) {
     buildEngine(engine_path, onnx_path);
     initEngine(engine_path);
-    printEngineInfo10x(engine_, context_);
+    // printEngineInfo10x(engine_, context_);
 }
 
 vector<Box> trtEngine::infer(const Mat& img) {
@@ -71,8 +71,8 @@ void trtEngine::drawDetections(Mat& img, const vector<Box>& detections) {
         // 画绿色检测框
         rectangle(img, Point(det.x1, det.y1), Point(det.x2, det.y2),
                   Scalar(0, 255, 0), 2);
-        cout << det.x1 << ',' << det.y1 << ',' << det.x2 << ',' << det.y2
-             << endl;
+        // cout << det.x1 << ',' << det.y1 << ',' << det.x2 << ',' << det.y2
+        //      << endl;
         // 画标签+置信度（带背景框，文字清晰）
         string label =
             format("%s %.2f", COCO_NAMES[det.class_id].c_str(), det.score);
