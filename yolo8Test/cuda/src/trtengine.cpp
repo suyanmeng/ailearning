@@ -12,7 +12,7 @@ trtEngine::trtEngine(const std::string& engine_path,
                      const std::string& onnx_path) {
     buildEngine(engine_path, onnx_path);
     initEngine(engine_path);
-    // printEngineInfo10x(engine_, context_);
+    printEngineInfo10x(engine_, context_);
 }
 
 vector<Box> trtEngine::infer(const Mat& img) {
@@ -98,10 +98,8 @@ void trtEngine::buildEngine(const std::string& engine_path,
     if (!f.good()) {
         cout << "引擎不存在，开始从ONNX构建..." << endl;
 
-        // ==================== TRT10 正确写法 ====================
         auto builder = createInferBuilder(gLogger);
-        auto network =
-            builder->createNetworkV2(0U);  // TRT10 不需要 kEXPLICIT_BATCH
+        auto network = builder->createNetworkV2(0U);
         auto parser = nvonnxparser::createParser(*network, gLogger);
         auto config = builder->createBuilderConfig();
 
@@ -110,20 +108,36 @@ void trtEngine::buildEngine(const std::string& engine_path,
         vector<char> onnx_buf((istreambuf_iterator<char>(onnx_file)),
                               istreambuf_iterator<char>());
         parser->parse(onnx_buf.data(), onnx_buf.size());
+        bool is_dynamic_batch =
+            (network->getInput(0)->getDimensions().d[0] == -1);
 
-        // 配置
+        if (is_dynamic_batch) {
+            // ========== 动态 Batch 配置（parse 之后才能写！） ==========
+            auto profile = builder->createOptimizationProfile();
+
+            profile->setDimensions(network->getInput(0)->getName(),
+                                   nvinfer1::OptProfileSelector::kMIN,
+                                   nvinfer1::Dims4{1, 3, 640, 640});
+            profile->setDimensions(network->getInput(0)->getName(),
+                                   nvinfer1::OptProfileSelector::kOPT,
+                                   nvinfer1::Dims4{4, 3, 640, 640});
+            profile->setDimensions(network->getInput(0)->getName(),
+                                   nvinfer1::OptProfileSelector::kMAX,
+                                   nvinfer1::Dims4{8, 3, 640, 640});
+
+            config->addOptimizationProfile(profile);
+        }
+
         config->setMemoryPoolLimit(MemoryPoolType::kWORKSPACE, 4ULL << 30);
         config->setFlag(BuilderFlag::kFP16);
 
-        // ==================== TRT10 关键 API：直接序列化，不返回 engine
-        // ====================
+        // 构建引擎
         IHostMemory* serialized =
             builder->buildSerializedNetwork(*network, *config);
 
         // 保存引擎
         ofstream engine_file(engine_path, ios::binary);
-        engine_file.write(reinterpret_cast<char*>(serialized->data()),
-                          serialized->size());
+        engine_file.write((char*)serialized->data(), serialized->size());
         engine_file.close();
 
         cout << "引擎构建完成！" << endl;
@@ -149,6 +163,7 @@ void trtEngine::initEngine(const std::string& engine_path) {
                                             input_height_ * sizeof(float)));
     CUDA_CHECK(
         cudaMalloc(&buffers_[1], out_width_ * out_height_ * sizeof(float)));
+    context_->setInputShape(engine_->getIOTensorName(0), Dims4{1, 3, 640, 640});
 
     Dims dims = context_->getTensorShape(engine_->getIOTensorName(0));
     input_channels_ = dims.d[1];

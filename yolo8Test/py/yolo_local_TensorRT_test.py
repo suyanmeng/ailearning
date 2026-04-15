@@ -28,7 +28,7 @@ if not os.path.exists("yolov8n.engine"):
         format="engine",
         device=0,
         imgsz=640,
-        dynamic=False,
+        dynamic=True,
         half=True,
     )
     print("✅ 引擎生成完成！")
@@ -50,7 +50,7 @@ for _ in range(100):
         device=0,
         imgsz=640,
         conf=0.25,
-        save=False,
+        save=True,
         verbose=False
     )
 

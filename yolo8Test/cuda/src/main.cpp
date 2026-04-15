@@ -433,9 +433,9 @@ int main() {
 #define SINGLE_IMAGE
 #ifdef SINGLE_IMAGE
 int main() {
-    const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
+    const string onnx_path = "/work/cuda/yolo8Test/py/yolov8ndynamic.onnx";
     const string engine_path =
-        "/work/cuda/yolo8Test/resource/yolov8n_cpp.engine";
+        "/work/cuda/yolo8Test/resource/yolov8ndynamic_cpp.engine";
     const string img_path = "/work/cuda/yolo8Test/picture/000000000077.jpg";
     const string save_path =
         "/work/cuda/yolo8Test/cuda/output/000000000077.jpg";
