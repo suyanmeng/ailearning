@@ -23,6 +23,12 @@ class Logger : public ILogger {
         if (severity <= Severity::kERROR) printf("[TRT ERROR] %s\n", msg);
     }
 };
+struct TrtImage
+{
+    string name; 
+    Mat mat;
+};
+
 inline Logger gLogger;
 const vector<string> COCO_NAMES = {
     "person",        "bicycle",      "car",
@@ -57,7 +63,7 @@ class trtEngine {
    public:
     trtEngine(const std::string& engine_path, const std::string& onnx_path);
 
-    vector<vector<Box>> infer(const vector<Mat>& imgs);
+    vector<vector<Box>> infer(const vector<TrtImage>& imgs);
     void drawDetections(Mat& img, const vector<Box>& detections);
     ~trtEngine();
 

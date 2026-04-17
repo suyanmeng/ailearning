@@ -15,16 +15,16 @@ trtEngine::trtEngine(const std::string& engine_path,
     printEngineInfo10x(engine_, context_);
 }
 
-vector<vector<Box>> trtEngine::infer(const vector<Mat>& imgs) {
+vector<vector<Box>> trtEngine::infer(const vector<TrtImage>& imgs) {
     uint8_t* d_src = nullptr;
     const int batch_size = imgs.size();
-    int cols = imgs[0].cols;
-    int rows = imgs[0].rows;
+    int cols = imgs[0].mat.cols;
+    int rows = imgs[0].mat.rows;
     const size_t src_bytes = batch_size * cols * rows * 3 * sizeof(uint8_t);
-
+    context_->setInputShape(engine_->getIOTensorName(0), Dims4{batch_size, 3, 640, 640});
     CUDA_CHECK(cudaMalloc(&d_src, src_bytes));
     for (int i = 0; i < batch_size; i++) {
-        CUDA_CHECK(cudaMemcpy(d_src + i * cols * rows * 3, imgs[i].data,
+        CUDA_CHECK(cudaMemcpy(d_src + i * cols * rows * 3, imgs[i].mat.data,
                               cols * rows * 3 * sizeof(uint8_t),
                               cudaMemcpyHostToDevice));
     }
@@ -253,7 +253,6 @@ void trtEngine::initEngine(const std::string& engine_path) {
                                             input_height_ * sizeof(float)));
     CUDA_CHECK(
         cudaMalloc(&buffers_[1], 4 * out_width_ * out_height_ * sizeof(float)));
-    context_->setInputShape(engine_->getIOTensorName(0), Dims4{4, 3, 640, 640});
 }
 
 void trtEngine::printEngineInfo10x(ICudaEngine* engine,

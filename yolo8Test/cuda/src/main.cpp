@@ -2,8 +2,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <opencv2/opencv.hpp>
 #include <vector>
+using namespace std::chrono;
 #define CANCLE_0
 #ifndef CANCLE_0
 #include "NvInfer.h"
@@ -430,26 +432,25 @@ int main() {
 
 #include "trtengine.h"
 
-//#define SINGLE_IMAGE
+// #define SINGLE_IMAGE
 #ifdef SINGLE_IMAGE
 int main() {
     const string onnx_path = "/work/cuda/yolo8Test/py/yolov8ndynamic.onnx";
     const string engine_path =
         "/work/cuda/yolo8Test/resource/yolov8ndynamic_cpp.engine";
     const string img_path = "/work/cuda/yolo8Test/resource/bus.jpg";
-    const string save_dir =
-        "/work/cuda/yolo8Test/cuda/output/";
+    const string save_dir = "/work/cuda/yolo8Test/cuda/output/";
     trtEngine engine(engine_path, onnx_path);
     Mat img = imread(img_path);
     if (img.empty()) {
-        cerr << "❌ 图片读取失败！请检查路径：" << img_path
-             << endl;
+        cerr << "❌ 图片读取失败！请检查路径：" << img_path << endl;
         return -1;
     }
-    vector<Mat> imgs={img};
+    vector<Mat> imgs = {img};
     auto detections = engine.infer(imgs);
-    for(int i = 0; i < detections.size(); i++){
-        cout << "图片 " << i << " 检测到有效框数量：" << detections[i].size() << endl;
+    for (int i = 0; i < detections.size(); i++) {
+        cout << "图片 " << i << " 检测到有效框数量：" << detections[i].size()
+             << endl;
         engine.drawDetections(imgs[i], detections[i]);
         string save_path = save_dir + "result_" + to_string(i) + ".jpg";
         cout << "保存路径: " << save_path << endl;
@@ -462,37 +463,76 @@ int main() {
 #define MULTI_IMAGE
 #ifdef MULTI_IMAGE
 int main() {
-    const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8ndynamic.onnx";
+    const string onnx_path =
+        "/work/cuda/yolo8Test/resource/yolov8ndynamic.onnx";
     const string engine_path =
         "/work/cuda/yolo8Test/resource/yolov8ndynamic_cpp.engine";
-    const string save_dir = "/work/cuda/yolo8Test/cuda/output/";
-    const string img_dir = "/work/cuda/yolo8Test/cuda/picture/";
+    const string save_dir = "/work/cuda/yolo8Test/cuda/picturenewret/";
+    const string img_dir = "/work/cuda/yolo8Test/picture/";
     if (!filesystem::exists(img_dir)) {
         std::cerr << "目录不存在: " << img_dir << std::endl;
         return -1;
     }
+    if (!filesystem::exists(save_dir)) {
+        std::cerr << "输出目录不存在，正在创建：" << save_dir << std::endl;
+        filesystem::create_directories(filesystem::path(save_dir));
+    }
     trtEngine engine(engine_path, onnx_path);
-    vector<Mat> imgs;
+    map<pair<int, int>, queue<TrtImage>> w_h_imgs;  // 图片分类
     for (auto& entry : filesystem::directory_iterator(img_dir)) {
         if (entry.is_regular_file()) {
             Mat img = imread(entry.path().string());
             if (img.empty()) {
                 cerr << "❌ 图片读取失败！请检查路径：" << entry.path().string()
                      << endl;
-                return -1;
+                continue;
             }
-            imgs.push_back(img);
+            string img_name = entry.path().string().substr(
+                entry.path().string().find_last_of("/") + 1);
+            w_h_imgs[{img.cols, img.rows}].push({img_name, img});
         }
     }
-
-    auto detections = engine.infer(imgs);
-    for(int i = 0; i < detections.size(); i++){
-        cout << "图片 " << i << " 检测到有效框数量：" << detections[i].size() << endl;
-        engine.drawDetections(imgs[i], detections[i]);
-        string save_path = save_dir + "result_" + to_string(i) + ".jpg";
-        cout << "保存路径: " << save_path << endl;
-        imwrite(save_path, imgs[i]);
+    if (w_h_imgs.empty()) {
+        cerr << "❌ 没有找到有效图片！请检查目录：" << img_dir << endl;
+        return -1;
     }
+    long long total_images = 0;
+    auto start_time = chrono::steady_clock::now();
+    for (auto& [w_h, imgs] : w_h_imgs) {
+        cout << "处理尺寸为 " << w_h.first << "x" << w_h.second
+             << " 的图片，共 " << imgs.size() << " 张" << endl;
+        total_images += imgs.size();
+        int batch_size = imgs.size();
+        while (!imgs.empty()) {
+            vector<TrtImage> batch_imgs;
+            for (int i = 0; i < 4 && !imgs.empty(); i++) {
+                batch_imgs.push_back(imgs.front());
+                imgs.pop();
+            }
+            auto detections = engine.infer(batch_imgs);
+            for (int i = 0; i < detections.size(); i++) {
+                cout << "图片 " << i << " 检测到有效框数量："
+                     << detections[i].size() << endl;
+                engine.drawDetections(batch_imgs[i].mat, detections[i]);
+                string save_path = save_dir + batch_imgs[i].name;
+                cout << "保存路径: " << save_path << endl;
+                imwrite(save_path, batch_imgs[i].mat);
+            }
+        }
+        auto now = steady_clock::now();
+        double elapsed = duration<double>(now - start_time).count();
+        double fps = total_images / elapsed;
+        printf("已处理: %3d 张 | 本次批次: %d 张 | FPS: %.2f\n",
+               (int)total_images, batch_size, fps);
+    }
+    auto end_time = steady_clock::now();
+    double total_sec = duration<double>(end_time - start_time).count();
+    double final_fps = total_images / total_sec;
+
+    printf("\n===== 处理完成 =====\n");
+    printf("总图片数 : %d\n", (int)total_images);
+    printf("总耗时   : %.2f 秒\n", total_sec);
+    printf("最终 FPS : %.2f\n", final_fps);
 
     return 0;
 }
