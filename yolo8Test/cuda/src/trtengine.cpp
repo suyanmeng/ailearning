@@ -21,7 +21,8 @@ vector<vector<Box>> trtEngine::infer(const vector<TrtImage>& imgs) {
     int cols = imgs[0].mat.cols;
     int rows = imgs[0].mat.rows;
     const size_t src_bytes = batch_size * cols * rows * 3 * sizeof(uint8_t);
-    context_->setInputShape(engine_->getIOTensorName(0), Dims4{batch_size, 3, 640, 640});
+    context_->setInputShape(engine_->getIOTensorName(0),
+                            Dims4{batch_size, 3, 640, 640});
     CUDA_CHECK(cudaMalloc(&d_src, src_bytes));
     for (int i = 0; i < batch_size; i++) {
         CUDA_CHECK(cudaMemcpy(d_src + i * cols * rows * 3, imgs[i].mat.data,
@@ -50,9 +51,10 @@ vector<vector<Box>> trtEngine::infer(const vector<TrtImage>& imgs) {
     auto t2 = chrono::high_resolution_clock::now();
     float ms1 = chrono::duration<float, milli>(t2 - t1).count();
     float* cpu_input = new float[batch_size * 3 * 640 * 640];
-    cudaMemcpy(cpu_input, buffers_[0], batch_size * 3 * 640 * 640 * sizeof(float),
+    cudaMemcpy(cpu_input, buffers_[0],
+               batch_size * 3 * 640 * 640 * sizeof(float),
                cudaMemcpyDeviceToHost);
-    //打印预处理图片
+    // 打印预处理图片
     for (int b = 0; b < batch_size; b++) {
         // 取出第 b 张预处理后的图：[3, 640, 640] float
         Mat img(640, 640, CV_32FC3);
@@ -70,7 +72,7 @@ vector<vector<Box>> trtEngine::infer(const vector<TrtImage>& imgs) {
                 g *= 255.0f;
                 b_val *= 255.0f;
 
-                img.at<Vec3f>(h, w) = Vec3f(b_val, g, r); // OpenCV: BGR
+                img.at<Vec3f>(h, w) = Vec3f(b_val, g, r);  // OpenCV: BGR
             }
         }
 
@@ -115,7 +117,7 @@ vector<vector<Box>> trtEngine::infer(const vector<TrtImage>& imgs) {
     CUDA_CHECK(cudaMalloc(&d_boxes, batch_size * MAX_BOXES * sizeof(Box)));
     CUDA_CHECK(cudaMalloc(&d_box_num, batch_size * sizeof(int)));
     t1 = chrono::high_resolution_clock::now();
-    launch_postprocess_kernel((float*)buffers_[1], out_width_, out_height_-4,
+    launch_postprocess_kernel((float*)buffers_[1], out_width_, out_height_ - 4,
                               0.25f, 0.45f, scale, pad_w, pad_h, cols, rows,
                               d_boxes, d_box_num, batch_size);
     t2 = chrono::high_resolution_clock::now();
@@ -152,21 +154,36 @@ vector<vector<Box>> trtEngine::infer(const vector<TrtImage>& imgs) {
 
 void trtEngine::drawDetections(Mat& img, const vector<Box>& detections) {
     for (const auto& det : detections) {
-        // 画绿色检测框
+        // 1. 画检测框
         rectangle(img, Point(det.x1, det.y1), Point(det.x2, det.y2),
-                  Scalar(0, 255, 0), 2);
-        // cout << det.x1 << ',' << det.y1 << ',' << det.x2 << ',' << det.y2
-        //      << endl;
-        // 画标签+置信度（带背景框，文字清晰）
+                  COCO_COLORS[det.class_id], 2);
+
+        // 2. 拼接标签文字
         string label =
             format("%s %.2f", COCO_NAMES[det.class_id].c_str(), det.score);
         int baseline = 0;
         Size label_size =
             getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.6, 2, &baseline);
-        rectangle(img, Point(det.x1, det.y1 - label_size.height - 5),
-                  Point(det.x1 + label_size.width, det.y1), Scalar(0, 255, 0),
-                  FILLED);
-        putText(img, label, Point(det.x1, det.y1 - 5), FONT_HERSHEY_SIMPLEX,
+
+        int label_x = det.x1;
+        int label_y;
+        bool label_inside = false;
+
+        // 如果框太靠上，标签会超出图片 → 把标签画在框内部
+        if (det.y1 - label_size.height - 5 < 0) {
+            label_y = det.y1 + label_size.height + 5;
+            label_inside = true;
+        } else {
+            label_y = det.y1 - 5;
+        }
+
+        // 3. 画标签背景
+        rectangle(img, Point(label_x, label_y - label_size.height - 5),
+                  Point(label_x + label_size.width, label_y),
+                  COCO_COLORS[det.class_id], FILLED);
+
+        // 4. 画文字
+        putText(img, label, Point(label_x, label_y - 5), FONT_HERSHEY_SIMPLEX,
                 0.6, Scalar(0, 0, 0), 2);
     }
 }

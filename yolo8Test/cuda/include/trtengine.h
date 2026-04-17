@@ -4,6 +4,7 @@
 #include <NvInfer.h>
 
 #include <opencv2/opencv.hpp>
+
 #include "postprocess.h"
 #include "preprocess.h"
 using namespace cv;
@@ -23,9 +24,8 @@ class Logger : public ILogger {
         if (severity <= Severity::kERROR) printf("[TRT ERROR] %s\n", msg);
     }
 };
-struct TrtImage
-{
-    string name; 
+struct TrtImage {
+    string name;
     Mat mat;
 };
 
@@ -58,6 +58,52 @@ const vector<string> COCO_NAMES = {
     "refrigerator",  "book",         "clock",
     "vase",          "scissors",     "teddy bear",
     "hair drier",    "toothbrush"};
+
+const cv::Scalar COCO_COLORS[] = {
+    cv::Scalar(0, 255, 0),      // 0: 绿色
+    cv::Scalar(255, 0, 0),      // 1: 蓝色
+    cv::Scalar(0, 0, 255),      // 2: 红色
+    cv::Scalar(255, 255, 0),    // 3: 青色
+    cv::Scalar(255, 0, 255),    // 4: 紫色
+    cv::Scalar(0, 255, 255),    // 5: 黄色
+    cv::Scalar(255, 255, 255),  // 6: 白色
+    cv::Scalar(128, 0, 0),     cv::Scalar(0, 128, 0),
+    cv::Scalar(0, 0, 128),     cv::Scalar(128, 128, 0),
+    cv::Scalar(128, 0, 128),   cv::Scalar(0, 128, 128),
+    cv::Scalar(128, 128, 128), cv::Scalar(255, 128, 0),
+    cv::Scalar(255, 0, 128),   cv::Scalar(128, 255, 0),
+    cv::Scalar(0, 255, 128),   cv::Scalar(128, 0, 255),
+    cv::Scalar(0, 128, 255),   cv::Scalar(255, 128, 128),
+    cv::Scalar(128, 255, 128), cv::Scalar(128, 128, 255),
+    cv::Scalar(255, 255, 128), cv::Scalar(255, 128, 255),
+    cv::Scalar(128, 255, 255), cv::Scalar(50, 150, 50),
+    cv::Scalar(150, 50, 50),   cv::Scalar(50, 50, 150),
+    cv::Scalar(150, 150, 50),  cv::Scalar(150, 50, 150),
+    cv::Scalar(50, 150, 150),  cv::Scalar(200, 100, 50),
+    cv::Scalar(100, 200, 50),  cv::Scalar(50, 100, 200),
+    cv::Scalar(100, 50, 200),  cv::Scalar(200, 50, 100),
+    cv::Scalar(50, 200, 100),  cv::Scalar(80, 180, 20),
+    cv::Scalar(180, 80, 20),   cv::Scalar(20, 180, 80),
+    cv::Scalar(80, 20, 180),   cv::Scalar(180, 20, 80),
+    cv::Scalar(20, 80, 180),   cv::Scalar(255, 64, 64),
+    cv::Scalar(64, 255, 64),   cv::Scalar(64, 64, 255),
+    cv::Scalar(255, 255, 64),  cv::Scalar(255, 64, 255),
+    cv::Scalar(64, 255, 255),  cv::Scalar(100, 200, 255),
+    cv::Scalar(255, 100, 200), cv::Scalar(200, 255, 100),
+    cv::Scalar(100, 200, 200), cv::Scalar(200, 100, 200),
+    cv::Scalar(200, 200, 100), cv::Scalar(150, 255, 0),
+    cv::Scalar(0, 150, 255),   cv::Scalar(255, 0, 150),
+    cv::Scalar(150, 0, 255),   cv::Scalar(255, 150, 0),
+    cv::Scalar(0, 255, 150),   cv::Scalar(255, 200, 0),
+    cv::Scalar(0, 255, 200),   cv::Scalar(200, 0, 255),
+    cv::Scalar(255, 0, 200),   cv::Scalar(200, 255, 0),
+    cv::Scalar(0, 200, 255),   cv::Scalar(100, 0, 255),
+    cv::Scalar(255, 100, 0),   cv::Scalar(0, 255, 100),
+    cv::Scalar(100, 255, 0),   cv::Scalar(0, 100, 255),
+    cv::Scalar(255, 0, 100),   cv::Scalar(50, 0, 0),
+    cv::Scalar(0, 50, 0),      cv::Scalar(0, 0, 50),
+    cv::Scalar(50, 50, 0),     cv::Scalar(50, 0, 50),
+    cv::Scalar(0, 50, 50)};
 
 class trtEngine {
    public:
