@@ -15,55 +15,139 @@ trtEngine::trtEngine(const std::string& engine_path,
     printEngineInfo10x(engine_, context_);
 }
 
-vector<Box> trtEngine::infer(const Mat& img) {
+vector<vector<Box>> trtEngine::infer(const vector<Mat>& imgs) {
     uint8_t* d_src = nullptr;
-    const size_t src_bytes = img.cols * img.rows * 3 * sizeof(uint8_t);
+    const int batch_size = imgs.size();
+    int cols = imgs[0].cols;
+    int rows = imgs[0].rows;
+    const size_t src_bytes = batch_size * cols * rows * 3 * sizeof(uint8_t);
 
     CUDA_CHECK(cudaMalloc(&d_src, src_bytes));
-    CUDA_CHECK(cudaMemcpy(d_src, img.data, src_bytes, cudaMemcpyHostToDevice));
+    for (int i = 0; i < batch_size; i++) {
+        CUDA_CHECK(cudaMemcpy(d_src + i * cols * rows * 3, imgs[i].data,
+                              cols * rows * 3 * sizeof(uint8_t),
+                              cudaMemcpyHostToDevice));
+    }
+    // CUDA_CHECK(cudaMemcpy(d_src, imgs[0].data, src_bytes,
+    // cudaMemcpyHostToDevice));
 
     float scale;
     int pad_w, pad_h;
-    calculate_scale_pad(img.cols, img.rows, input_width_, input_height_, scale,
-                        pad_w, pad_h);
+    calculate_scale_pad(cols, rows, input_width_, input_height_, scale, pad_w,
+                        pad_h);
     auto t1 = chrono::high_resolution_clock::now();
+    cout << "scale: " << scale << ", pad_w: " << pad_w << ", pad_h: " << pad_h
+         << ", batch_size: " << batch_size << endl;
     // cuda预处理
-    launch_preprocess_kernel(d_src, img.cols, img.rows, (float*)buffers_[0],
+    launch_preprocess_kernel(d_src, cols, rows, (float*)buffers_[0],
                              input_width_, input_height_, scale, pad_w, pad_h,
-                             true);
-
+                             true, batch_size);
+    cudaDeviceSynchronize();
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("CUDA 错误: %s\n", cudaGetErrorString(err));
+    }
     auto t2 = chrono::high_resolution_clock::now();
     float ms1 = chrono::duration<float, milli>(t2 - t1).count();
+    float* cpu_input = new float[batch_size * 3 * 640 * 640];
+    cudaMemcpy(cpu_input, buffers_[0], batch_size * 3 * 640 * 640 * sizeof(float),
+               cudaMemcpyDeviceToHost);
+    //打印预处理图片
+    for (int b = 0; b < batch_size; b++) {
+        // 取出第 b 张预处理后的图：[3, 640, 640] float
+        Mat img(640, 640, CV_32FC3);
+        float* ptr = cpu_input + b * 3 * 640 * 640;
+
+        // 把 CHW 格式转成 HWC 格式，才能用 OpenCV 显示
+        for (int h = 0; h < 640; h++) {
+            for (int w = 0; w < 640; w++) {
+                float r = ptr[0 * 640 * 640 + h * 640 + w];
+                float g = ptr[1 * 640 * 640 + h * 640 + w];
+                float b_val = ptr[2 * 640 * 640 + h * 640 + w];
+
+                // 反归一化（如果你预处理做了 /255 就打开）
+                r *= 255.0f;
+                g *= 255.0f;
+                b_val *= 255.0f;
+
+                img.at<Vec3f>(h, w) = Vec3f(b_val, g, r); // OpenCV: BGR
+            }
+        }
+
+        // 转成 8bit 图片
+        Mat img_8u;
+        img.convertTo(img_8u, CV_8UC3);
+
+        // 保存
+        char name[64];
+        sprintf(name, "debug_preprocessed_batch_%d.jpg", b);
+        imwrite(name, img_8u);
+        printf("✅ 已保存预处理图片: %s\n", name);
+    }
+    // 打印前10个值
+    // for(int i=0; i<10; i++){
+    //     printf("%f ", cpu_input[i*8400]);
+    // }
+    for (int i = 0; i < batch_size; i++) {
+        cout << "第 " << i << " 张图片前10个值: ";
+        for (int j = 0; j < 10; j++) {
+            printf("%f ",
+                   cpu_input[i * 3 * 640 * 640 + 640 * 320 + j]);  // 中间值
+        }
+        cout << endl;
+    }
 
     // 推理
     t1 = chrono::high_resolution_clock::now();
     context_->executeV2(buffers_);
     t2 = chrono::high_resolution_clock::now();
     auto ms2 = chrono::duration<float, milli>(t2 - t1).count();
+    cudaDeviceSynchronize();
+    cudaError_t err2 = cudaGetLastError();
+    if (err2 != cudaSuccess) {
+        printf("CUDA 错误: %d %s\n%d", err2, cudaGetErrorString(err2));
+    }
 
     // cuda后处理
-    const int MAX_BOXES = 100;
+    const int MAX_BOXES = 1024;
     Box* d_boxes;
     int* d_box_num;
-    CUDA_CHECK(cudaMalloc(&d_boxes, MAX_BOXES * sizeof(Box)));
-    CUDA_CHECK(cudaMalloc(&d_box_num, sizeof(int)));
+    CUDA_CHECK(cudaMalloc(&d_boxes, batch_size * MAX_BOXES * sizeof(Box)));
+    CUDA_CHECK(cudaMalloc(&d_box_num, batch_size * sizeof(int)));
     t1 = chrono::high_resolution_clock::now();
-    launch_postprocess_kernel((float*)buffers_[1], out_width_, out_height_,
-                              0.25f, 0.45f, scale, pad_w, pad_h, img.cols,
-                              img.rows, d_boxes, d_box_num);
+    launch_postprocess_kernel((float*)buffers_[1], out_width_, out_height_-4,
+                              0.25f, 0.45f, scale, pad_w, pad_h, cols, rows,
+                              d_boxes, d_box_num, batch_size);
     t2 = chrono::high_resolution_clock::now();
     auto ms3 = chrono::duration<float, milli>(t2 - t1).count();
 
-    int box_num = 0;
-    cudaMemcpy(&box_num, d_box_num, sizeof(int), cudaMemcpyDeviceToHost);
-    vector<Box> detections(box_num);
-    cudaMemcpy(detections.data(), d_boxes, box_num * sizeof(Box),
+    cudaDeviceSynchronize();
+    cudaError_t err1 = cudaGetLastError();
+    if (err1 != cudaSuccess) {
+        printf("CUDA 错误: %d %s\n%d", err1, cudaGetErrorString(err1));
+    }
+
+    int* box_num = new int[batch_size];
+    cudaMemcpy(box_num, d_box_num, batch_size * sizeof(int),
                cudaMemcpyDeviceToHost);
-    cout << "检测到有效框数量（GPU后处理后）：" << box_num << endl;
+    Box* detections = new Box[batch_size * MAX_BOXES * sizeof(Box)];
+    cudaMemcpy(detections, d_boxes, batch_size * MAX_BOXES * sizeof(Box),
+               cudaMemcpyDeviceToHost);
+    cout << "检测到有效框数量（GPU后处理后）：" << box_num[0] << endl;
     CUDA_CHECK(cudaFree(d_src));
     CUDA_CHECK(cudaFree(d_boxes));
     CUDA_CHECK(cudaFree(d_box_num));
-    return detections;
+    vector<vector<Box>> results;
+
+    for (int i = 0; i < batch_size; i++) {
+        vector<Box> img_boxes;
+        for (int j = 0; j < box_num[i]; j++) {
+            img_boxes.push_back(detections[i * MAX_BOXES + j]);
+        }
+        results.push_back(img_boxes);
+        cout << "第 " << i << " 张图片检测到 " << box_num[i] << " 个框" << endl;
+    }
+    return results;
 }
 
 void trtEngine::drawDetections(Mat& img, const vector<Box>& detections) {
@@ -155,15 +239,8 @@ void trtEngine::initEngine(const std::string& engine_path) {
         gLogger);  // 工厂 创建 TensorRT 运行时环境(日志、资源)
     engine_ = runtime_->deserializeCudaEngine(
         engine_buf.data(), engine_size);  // 机器 把引擎从内存加载到 GPU
-    context_ =
-        engine_->createExecutionContext();  // 工人
-                                            // 负责执行推理，可创建多个用来并行
-
-    CUDA_CHECK(cudaMalloc(&buffers_[0], input_channels_ * input_width_ *
-                                            input_height_ * sizeof(float)));
-    CUDA_CHECK(
-        cudaMalloc(&buffers_[1], out_width_ * out_height_ * sizeof(float)));
-    context_->setInputShape(engine_->getIOTensorName(0), Dims4{1, 3, 640, 640});
+    context_ = engine_->createExecutionContext();  // 工人
+    // 负责执行推理，可创建多个用来并行
 
     Dims dims = context_->getTensorShape(engine_->getIOTensorName(0));
     input_channels_ = dims.d[1];
@@ -172,6 +249,11 @@ void trtEngine::initEngine(const std::string& engine_path) {
     dims = context_->getTensorShape(engine_->getIOTensorName(1));
     out_width_ = dims.d[2];
     out_height_ = dims.d[1];
+    CUDA_CHECK(cudaMalloc(&buffers_[0], 1 * input_channels_ * input_width_ *
+                                            input_height_ * sizeof(float)));
+    CUDA_CHECK(
+        cudaMalloc(&buffers_[1], 4 * out_width_ * out_height_ * sizeof(float)));
+    context_->setInputShape(engine_->getIOTensorName(0), Dims4{4, 3, 640, 640});
 }
 
 void trtEngine::printEngineInfo10x(ICudaEngine* engine,

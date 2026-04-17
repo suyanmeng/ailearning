@@ -18,7 +18,8 @@ void launch_postprocess_kernel(
     float scale, int pad_w, int pad_h, int img_w,
     int img_h,           // 原图宽高
     Box* d_final_boxes,  // 输出：最终框 GPU 地址
-    int* d_num_boxes     // 输出：框数量 GPU 地址
+    int* d_num_boxes,    // 输出：框数量 GPU 地址
+    int batch_size       // 批量大小，默认为1
 );
 
 #endif

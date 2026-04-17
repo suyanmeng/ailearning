@@ -57,7 +57,7 @@ class trtEngine {
    public:
     trtEngine(const std::string& engine_path, const std::string& onnx_path);
 
-    vector<Box> infer(const Mat& img);
+    vector<vector<Box>> infer(const vector<Mat>& imgs);
     void drawDetections(Mat& img, const vector<Box>& detections);
     ~trtEngine();
 
@@ -75,8 +75,8 @@ class trtEngine {
     int input_channels_ = 3;
     int input_width_ = 640;
     int input_height_ = 640;
-    int out_width_ = 84;
-    int out_height_ = 8400;
+    int out_width_ = 8400;
+    int out_height_ = 84;
 };
 
 #endif  // TRTENGINE_H

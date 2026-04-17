@@ -430,15 +430,15 @@ int main() {
 
 #include "trtengine.h"
 
-#define SINGLE_IMAGE
+//#define SINGLE_IMAGE
 #ifdef SINGLE_IMAGE
 int main() {
     const string onnx_path = "/work/cuda/yolo8Test/py/yolov8ndynamic.onnx";
     const string engine_path =
         "/work/cuda/yolo8Test/resource/yolov8ndynamic_cpp.engine";
-    const string img_path = "/work/cuda/yolo8Test/picture/000000000077.jpg";
-    const string save_path =
-        "/work/cuda/yolo8Test/cuda/output/000000000077.jpg";
+    const string img_path = "/work/cuda/yolo8Test/resource/bus.jpg";
+    const string save_dir =
+        "/work/cuda/yolo8Test/cuda/output/";
     trtEngine engine(engine_path, onnx_path);
     Mat img = imread(img_path);
     if (img.empty()) {
@@ -446,29 +446,33 @@ int main() {
              << endl;
         return -1;
     }
-    vector<Box> detections;
-    detections = engine.infer(img);
-    engine.drawDetections(img, detections);
-    cout << "保存路径: " << save_path << endl;
-    imwrite(save_path, img);
+    vector<Mat> imgs={img};
+    auto detections = engine.infer(imgs);
+    for(int i = 0; i < detections.size(); i++){
+        cout << "图片 " << i << " 检测到有效框数量：" << detections[i].size() << endl;
+        engine.drawDetections(imgs[i], detections[i]);
+        string save_path = save_dir + "result_" + to_string(i) + ".jpg";
+        cout << "保存路径: " << save_path << endl;
+        imwrite(save_path, img);
+    }
 
     return 0;
 }
 #endif
-// #define MULTI_IMAGE
+#define MULTI_IMAGE
 #ifdef MULTI_IMAGE
 int main() {
-    const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
+    const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8ndynamic.onnx";
     const string engine_path =
-        "/work/cuda/yolo8Test/resource/yolov8n_cpp.engine";
-    const string img_path = "/work/cuda/yolo8Test/picture/000000000077.jpg";
+        "/work/cuda/yolo8Test/resource/yolov8ndynamic_cpp.engine";
     const string save_dir = "/work/cuda/yolo8Test/cuda/output/";
-    const string img_dir = "/work/cuda/yolo8Test/picture/";
+    const string img_dir = "/work/cuda/yolo8Test/cuda/picture/";
     if (!filesystem::exists(img_dir)) {
         std::cerr << "目录不存在: " << img_dir << std::endl;
         return -1;
     }
     trtEngine engine(engine_path, onnx_path);
+    vector<Mat> imgs;
     for (auto& entry : filesystem::directory_iterator(img_dir)) {
         if (entry.is_regular_file()) {
             Mat img = imread(entry.path().string());
@@ -477,13 +481,17 @@ int main() {
                      << endl;
                 return -1;
             }
-            vector<Box> detections;
-            detections = engine.infer(img);
-            engine.drawDetections(img, detections);
-            string save_path = save_dir + entry.path().filename().string();
-            cout << "保存路径: " << save_path << endl;
-            imwrite(save_path, img);
+            imgs.push_back(img);
         }
+    }
+
+    auto detections = engine.infer(imgs);
+    for(int i = 0; i < detections.size(); i++){
+        cout << "图片 " << i << " 检测到有效框数量：" << detections[i].size() << endl;
+        engine.drawDetections(imgs[i], detections[i]);
+        string save_path = save_dir + "result_" + to_string(i) + ".jpg";
+        cout << "保存路径: " << save_path << endl;
+        imwrite(save_path, imgs[i]);
     }
 
     return 0;
