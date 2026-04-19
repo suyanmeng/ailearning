@@ -3,6 +3,9 @@
         {
             "name": "CUDA-WSL2",
             "includePath": [
+                "${workspaceFolder}/tensorRtYolo/pipeline/include",
+                "${workspaceFolder}/tensorRtYolo/pipeline/src",
+                "${workspaceFolder}/yolo8Test/cuda/include",
                 "${workspaceFolder}/**",
                 "/usr/local/cuda/include",
                 "/usr/local/include/opencv4"

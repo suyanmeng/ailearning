@@ -2,6 +2,22 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "pileLine",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "program": "/work/cuda/tensorRtYolo/pipeline/build/tensorRtYolo",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "miDebuggerPath": "/usr/local/cuda-12.4/bin/cuda-gdb",
+            "miDebuggerArgs": "-q -x /work/cuda/.gdbinit",
+            "environment": [
+                { "name": "DISPLAY", "value": ":0" },
+                { "name": "LD_LIBRARY_PATH", "value": "/usr/local/cuda-12.4/lib64" },
+                { "name": "CUDA_VISIBLE_DEVICES", "value": "0" }
+            ]
+        },
+        {
             "name": "yolo8TestCuda",
             "type": "cuda-gdb",
             "request": "launch",
