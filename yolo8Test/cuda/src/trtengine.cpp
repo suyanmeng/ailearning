@@ -266,10 +266,10 @@ void trtEngine::initEngine(const std::string& engine_path) {
     dims = context_->getTensorShape(engine_->getIOTensorName(1));
     out_width_ = dims.d[2];
     out_height_ = dims.d[1];
-    CUDA_CHECK(cudaMalloc(&buffers_[0], 1 * input_channels_ * input_width_ *
+    CUDA_CHECK(cudaMalloc(&buffers_[0], 8 * input_channels_ * input_width_ *
                                             input_height_ * sizeof(float)));
     CUDA_CHECK(
-        cudaMalloc(&buffers_[1], 4 * out_width_ * out_height_ * sizeof(float)));
+        cudaMalloc(&buffers_[1], 8 * out_width_ * out_height_ * sizeof(float)));
 }
 
 void trtEngine::printEngineInfo10x(ICudaEngine* engine,
