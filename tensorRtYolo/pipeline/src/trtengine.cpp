@@ -1,16 +1,7 @@
 #include "trtengine.h"
 
 namespace TensorRTYolo {
-TrtEngine::~TrtEngine() {
-    if (buffers_[0]) {
-        cudaFree(buffers_[0]);
-        buffers_[0] = nullptr;
-    }
-    if (buffers_[1]) {
-        cudaFree(buffers_[1]);
-        buffers_[1] = nullptr;
-    }
-}
+TrtEngine::~TrtEngine() {}
 
 bool TrtEngine::load_engine(const std::string& engine_path) {
     std::ifstream engine_file(engine_path, std::ios::binary | std::ios::ate);
@@ -44,22 +35,28 @@ bool TrtEngine::load_engine(const std::string& engine_path) {
     dims = context_->getTensorShape(engine_->getIOTensorName(1));
     out_height_ = dims.d[1];
     out_width_ = dims.d[2];
-    CUDA_CHECK(cudaMalloc(&buffers_[0], 4 * input_channels_ * input_width_ *
-                                            input_height_ * sizeof(float)));
-    CUDA_CHECK(
-        cudaMalloc(&buffers_[1], 4 * out_width_ * out_height_ * sizeof(float)));
     return true;
 }
 
-void TrtEngine::set_dynamic_batch(int batch_size) { context_->setInputShape(engine_->getIOTensorName(0),
-                            nvinfer1::Dims4{batch_size, input_channels_, input_height_, input_width_}); }
+void TrtEngine::set_dynamic_batch(int batch_size) {
+    context_->setInputShape(engine_->getIOTensorName(0),
+                            nvinfer1::Dims4{batch_size, input_channels_,
+                                            input_height_, input_width_});
+}
 
-void TrtEngine::infer() {
-    context_->executeV2(buffers_);
+void TrtEngine::infer(const GPUBuffer* buffer) {
+    void* buf[2] = {buffer->gpu_input, buffer->gpu_output};
+    context_->executeV2(buf);
     cudaDeviceSynchronize();
     cudaError_t err2 = cudaGetLastError();
     if (err2 != cudaSuccess) {
         printf("CUDA 错误: %d %s\n", err2, cudaGetErrorString(err2));
     }
+}
+size_t TrtEngine::getInputMaxSize() {
+    return MAX_BATCH * input_channels_ * input_width_ * input_height_ * sizeof(float);
+}
+size_t TrtEngine::getOutputMaxSize() {
+    return MAX_BATCH * out_width_ * out_height_ * sizeof(float);
 }
 }  // namespace TensorRTYolo

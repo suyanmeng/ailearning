@@ -1,11 +1,12 @@
 #pragma once
 #include <NvInfer.h>
 #include <cuda_runtime.h>
-#include <iostream>
+
 #include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
-#include <fstream>
 #define CUDA_CHECK(call)                                                     \
     do {                                                                     \
         cudaError_t err = call;                                              \
@@ -16,7 +17,7 @@
         }                                                                    \
     } while (0)
 namespace cv {
-    class Mat;
+class Mat;
 }
 namespace TensorRTYolo {
 namespace fs = std::filesystem;
@@ -35,16 +36,22 @@ struct ImageData {
     std::string name;
     std::shared_ptr<cv::Mat> mat;
 };
+struct GPUBuffer {
+    float* gpu_input = nullptr;
+    float* gpu_output = nullptr;
+    bool used = false;
+};
 // 批量输入数据（送给推理）
 struct BatchData {
     std::vector<ImageData> images;
-    int origin_w = 0;    // 原图宽
-    int origin_h = 0;    // 原图高
+    int src_w = 0;       // 原图宽
+    int src_h = 0;       // 原图高
     int dst_w = 640;     // 预处理后宽
     int dst_h = 640;     // 预处理后高
     float scale = 1.0f;  // 缩放比例 (new / original)
     int pad_w = 0;       // 左右 padding
     int pad_h = 0;       // 上下 padding
+    GPUBuffer* gpu_buf = nullptr;
 };
 // 检测框结构体
 struct BoxResult {

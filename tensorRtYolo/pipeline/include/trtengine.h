@@ -14,19 +14,19 @@ class TrtEngine {
     int getOutputWidth() const { return out_width_; }
     int getOutputHeight() const { return out_height_; }
     void set_dynamic_batch(int batch_size);
-    void infer();
-    void* getInputBuffer() const { return buffers_[0]; }
-    void* getOutputBuffer() const { return buffers_[1]; }
+    void infer(const GPUBuffer* buffer);
+    size_t getInputMaxSize();
+    size_t getOutputMaxSize();
 
    private:
     std::unique_ptr<nvinfer1::IRuntime> runtime_ = nullptr;
     std::unique_ptr<nvinfer1::ICudaEngine> engine_ = nullptr;
     std::unique_ptr<nvinfer1::IExecutionContext> context_ = nullptr;
-    void* buffers_[2] = {nullptr};
     int input_channels_ = 3;
     int input_width_ = 640;
     int input_height_ = 640;
     int out_width_ = 8400;
     int out_height_ = 84;
+    const static int MAX_BATCH = 4;
 };
 }  // namespace TensorRTYolo

@@ -12,8 +12,8 @@ BatchResult TensorRTYolo::PostProcessor::batchProcess(
     CUDA_CHECK(cudaMalloc(&d_box_num, batch_data.images.size() * sizeof(int)));
     launch_postprocess_kernel(
         gpu_output, out_width_, out_height_ - 4, 0.25f, 0.45f, batch_data.scale,
-        batch_data.pad_w, batch_data.pad_h, batch_data.origin_w,
-        batch_data.origin_h, d_boxes, d_box_num, batch_data.images.size());
+        batch_data.pad_w, batch_data.pad_h, batch_data.src_w,
+        batch_data.src_h, d_boxes, d_box_num, batch_data.images.size());
     cudaDeviceSynchronize();
     cudaError_t err1 = cudaGetLastError();
     if (err1 != cudaSuccess) {
