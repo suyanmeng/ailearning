@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
         img_dir = argv[2];
         save_dir = argv[3];
     } else {
-        engine_path = "/work/cuda/yolo8Test/resource/yolov8ndynamic_cpp.engine";
+        engine_path = "/work/cuda/tensorRtYolo/models/engine/yolov8n.engine";
         img_dir = "/work/cuda/yolo8Test/picture/";
         save_dir = "/work/cuda/tensorRtYolo/pipeline/output/";
     }
