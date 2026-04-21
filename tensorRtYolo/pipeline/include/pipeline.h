@@ -19,12 +19,13 @@ class Pipeline {
 
     void run();
     void stop();
-    bool setInputDir(const std::string& input_dir);
-    void setOutputDir(const std::string& output_dir);
+    bool setImageDir(const std::string& input_dir, const std::string& output_dir);
+    bool setVideoPath(const std::string& video_src_path, const std::string& video_dst_path);
 
    private:
     // 线程1：读取图像 + 组建Batch
-    void threadProducer();
+    void threadImageProducer();
+    void threadVideoProducer();
 
     // 线程2：GPU预处理
     void threadPreprocess();
@@ -39,6 +40,9 @@ class Pipeline {
    private:
     std::string input_dir_;
     std::string output_dir_;
+    bool video_flag_ = false;
+    cv::VideoCapture cap_;
+    cv::VideoWriter writer_;
 
     std::unique_ptr<PreProcessor> pre_;
     std::unique_ptr<TrtEngine> trt_;

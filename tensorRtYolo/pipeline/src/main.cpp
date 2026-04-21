@@ -1,6 +1,8 @@
 #include <iostream>
 
 #include "pipeline.h"
+// #define MULTI_IMAGE
+#ifdef MULTI_IMAGE
 int main(int argc, char** argv) {
     // 1. 传入三个参数：engine路径 + 图片目录 + 保存目录
     std::string engine_path;
@@ -16,8 +18,24 @@ int main(int argc, char** argv) {
         save_dir = "/work/cuda/tensorRtYolo/pipeline/output/";
     }
     TensorRTYolo::Pipeline pipeline(engine_path);
-    pipeline.setInputDir(img_dir);
-    pipeline.setOutputDir(save_dir);
+    pipeline.setImageDir(img_dir, save_dir);
     pipeline.run();
     return 0;
 }
+#endif
+
+#define VEDIO_0
+#ifdef VEDIO_0
+int main() {
+    const std::string engine_path =
+        "/work/cuda/tensorRtYolo/models/engine/yolov8n.engine";
+    const std::string mv_path = "/work/cuda/yolo8Test/resource/demo0.mp4";
+    const std::string save_mv_path =
+        "/work/cuda/tensorRtYolo/pipeline/output/demo0.mp4";
+    TensorRTYolo::Pipeline pipeline(engine_path);
+    pipeline.setVideoPath(mv_path, save_mv_path);
+    pipeline.run();
+
+    return 0;
+}
+#endif

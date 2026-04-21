@@ -23,7 +23,11 @@ void Pipeline::run() {
     std::cout << "[Pipeline] 启动 3 线程 GPU 流水线" << std::endl;
 
     // 启动 3 个线程
-    t_producer_ = std::thread(&Pipeline::threadProducer, this);
+    if (video_flag_) {
+        t_producer_ = std::thread(&Pipeline::threadVideoProducer, this);
+    } else {
+        t_producer_ = std::thread(&Pipeline::threadImageProducer, this);
+    }
     t_preprocess_ = std::thread(&Pipeline::threadPreprocess, this);
     t_infer_post_ = std::thread(&Pipeline::threadInferPost, this);
 
@@ -41,24 +45,64 @@ void Pipeline::stop() {
     cv_prep_.notify_all();
 }
 
-bool Pipeline::setInputDir(const std::string& input_dir) {
+bool Pipeline::setImageDir(const std::string& input_dir,
+                           const std::string& output_dir) {
     if (!fs::exists(input_dir)) {
         std::cerr << "输入目录不存在: " << input_dir << std::endl;
         return false;
     }
+    if (!fs::exists(output_dir)) {
+        if (fs::create_directories(fs::path(output_dir))) {
+            std::cout << "输出目录不存在，创建成功: " << output_dir
+                      << std::endl;
+        } else {
+            std::cerr << "输出目录不存在，创建失败: " << output_dir
+                      << std::endl;
+            return false;
+        }
+    }
     input_dir_ = input_dir;
+    output_dir_ = output_dir;
+    video_flag_ = false;
     return true;
 }
 
-void Pipeline::setOutputDir(const std::string& output_dir) {
-    if (!fs::exists(output_dir)) {
-        fs::create_directories(fs::path(output_dir));
+bool Pipeline::setVideoPath(const std::string& video_src_path,
+                            const std::string& video_dst_path) {
+    if (!fs::exists(video_src_path)) {
+        std::cerr << "视频源路径不存在: " << video_src_path << std::endl;
+        return false;
     }
-    output_dir_ = output_dir;
+    if (!cap_.open(video_src_path)) {
+        std::cerr << "视频打开失败: " << video_src_path << std::endl;
+        return false;
+    }
+    if (!fs::exists(fs::path(video_dst_path).parent_path())) {
+        if (fs::create_directories(fs::path(video_dst_path).parent_path())) {
+            std::cout << "输出目录不存在，创建成功: " << video_dst_path
+                      << std::endl;
+        } else {
+            std::cerr << "输出目录不存在，创建失败: " << video_dst_path
+                      << std::endl;
+            return false;
+        }
+    }
+    std::cout << "视频打开成功: " << video_src_path << std::endl;
+    int width = static_cast<int>(cap_.get(cv::CAP_PROP_FRAME_WIDTH));
+    int height = static_cast<int>(cap_.get(cv::CAP_PROP_FRAME_HEIGHT));
+    double fps = cap_.get(cv::CAP_PROP_FPS);
+    int fourcc = cv::VideoWriter::fourcc(
+        'm', 'p', '4', 'v');  // mp4v是常用的编码器，兼容性较好
+    writer_ =
+        cv::VideoWriter(video_dst_path, fourcc, fps, cv::Size(width, height));
+
+    video_flag_ = true;
+    return true;
+    return false;
 }
 
 // 线程1：生产Batch（读图片）
-void Pipeline::threadProducer() {
+void Pipeline::threadImageProducer() {
     if (!fs::exists(input_dir_)) return;
 
     std::map<std::pair<int, int>, std::queue<ImageData>> w_h_imgs;
@@ -94,6 +138,51 @@ void Pipeline::threadProducer() {
     stop_flag_ = true;
     cv_batch_.notify_all();
     std::cout << "[线程1] 生产完成" << std::endl;
+}
+
+void Pipeline::threadVideoProducer() {
+    if (!cap_.isOpened()) return;
+
+    cv::Mat frame;
+    int cnt = 0;
+    std::queue<ImageData> imgs;
+    while (cap_.read(frame) && !frame.empty()) {
+        cnt++;
+        imgs.push(
+            {std::to_string(cnt), std::make_shared<cv::Mat>(frame.clone())});
+        if (cnt == 4) {
+            cnt = 0;
+            BatchData data;
+            while (!imgs.empty()) {
+                data.images.push_back(imgs.front());
+                imgs.pop();
+            }
+            // 推入Batch队列（线程安全）
+            {
+                std::lock_guard<std::mutex> lock(mtx_batch_);
+                batch_queue_.push(data);
+                cv_batch_.notify_one();
+            }
+        }
+    }
+    if (!imgs.empty()) {
+        BatchData data;
+        while (!imgs.empty()) {
+            data.images.push_back(imgs.front());
+            imgs.pop();
+        }
+        // 推入Batch队列（线程安全）
+        {
+            std::lock_guard<std::mutex> lock(mtx_batch_);
+            batch_queue_.push(data);
+            cv_batch_.notify_one();
+        }
+    }
+    // 生产结束
+    std::lock_guard<std::mutex> lock(mtx_batch_);
+    stop_flag_ = true;
+    cv_batch_.notify_all();
+    std::cout << "[视频线程] 读帧完成" << std::endl;
 }
 
 // 线程2：预处理（从内存池取显存）
@@ -159,6 +248,11 @@ void Pipeline::threadInferPost() {
         // 归还 GPU 显存
         gpu_pool_->free(batch_data.gpu_buf);
     }
+    if (video_flag_) {
+        cap_.release();
+        writer_.release();
+        video_flag_ = false;
+    }
     std::cout << "[线程3] 推理线程退出" << std::endl;
 }
 
@@ -180,9 +274,13 @@ void Pipeline::saveResult(BatchData& batch_data,
                           const BatchResult& batch_result) {
     for (int i = 0; i < batch_data.images.size(); i++) {
         vis_->draw(batch_data.images[i].mat, batch_result.imgs_ret[i].boxes);
-        std::string save_path = output_dir_ + batch_data.images[i].name;
-        std::cout << "保存图片: " << save_path << std::endl;
-        cv::imwrite(save_path, *(batch_data.images[i].mat));
+        if (video_flag_) {
+            writer_.write(*(batch_data.images[i].mat));
+        } else {
+            std::string save_path = output_dir_ + batch_data.images[i].name;
+            std::cout << "保存图片: " << save_path << std::endl;
+            cv::imwrite(save_path, *(batch_data.images[i].mat));
+        }
     }
 }
 
