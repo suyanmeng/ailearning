@@ -5,6 +5,7 @@
 #include <map>
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include "trtenginetest.h"
 using namespace std::chrono;
 #define CANCLE_0
 #ifndef CANCLE_0
@@ -430,7 +431,7 @@ int main() {
 }
 #endif
 
-#include "trtengine.h"
+
 
 // #define SINGLE_IMAGE
 #ifdef SINGLE_IMAGE
@@ -460,7 +461,7 @@ int main() {
     return 0;
 }
 #endif
-#define MULTI_IMAGE
+//#define MULTI_IMAGE
 #ifdef MULTI_IMAGE
 int main() {
     const string onnx_path =
@@ -537,7 +538,7 @@ int main() {
     return 0;
 }
 #endif
-// #define VEDIO_0
+#define VEDIO_0
 #ifdef VEDIO_0
 int main() {
     const string onnx_path = "/work/cuda/yolo8Test/resource/yolov8n.onnx";
