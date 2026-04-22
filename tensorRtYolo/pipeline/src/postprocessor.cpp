@@ -14,10 +14,9 @@ BatchResult TensorRTYolo::PostProcessor::batchProcess(
         gpu_output, out_width_, out_height_ - 4, 0.25f, 0.45f, batch_data.scale,
         batch_data.pad_w, batch_data.pad_h, batch_data.src_w,
         batch_data.src_h, d_boxes, d_box_num, batch_data.images.size());
-    cudaDeviceSynchronize();
-    cudaError_t err1 = cudaGetLastError();
-    if (err1 != cudaSuccess) {
-        printf("CUDA 错误: %d %s\n", err1, cudaGetErrorString(err1));
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("CUDA 错误: %d %s\n", err, cudaGetErrorString(err));
     }
 
     int* box_num = new int[batch_data.images.size()];
@@ -39,8 +38,8 @@ BatchResult TensorRTYolo::PostProcessor::batchProcess(
             img_boxes.boxes.push_back(detections[i * MAX_BOXES + j]);
         }
         ret.imgs_ret.push_back(img_boxes);
-        std::cout << "第 " << i << " 张图片检测到 " << box_num[i] << " 个框"
-                  << std::endl;
+        // std::cout << "第 " << i << " 张图片检测到 " << box_num[i] << " 个框"
+        //           << std::endl;
     }
 
     return ret;

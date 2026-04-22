@@ -19,7 +19,6 @@ void PreProcessor::batchProcess(const BatchData& batch_data, float* gpu_input) {
                              gpu_input, batch_data.dst_w, batch_data.dst_h,
                              batch_data.scale, batch_data.pad_w,
                              batch_data.pad_h, true, batch_size);
-    cudaDeviceSynchronize();
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         printf("CUDA 错误: %s\n", cudaGetErrorString(err));

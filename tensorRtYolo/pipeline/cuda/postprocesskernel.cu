@@ -122,21 +122,19 @@ void launch_postprocess_kernel(
     decode_kernel<<<grid_decode, block>>>(
         d_model_output, num_anchors, num_classes, conf_thresh, scale, pad_w,
         pad_h, img_w, img_h, d_candidates, d_num_candidates, batch_size);
-    cudaDeviceSynchronize();
 
-    int* num_candidates = new int[batch_size]{0};
-    cudaMemcpy(num_candidates, d_num_candidates, batch_size * sizeof(int),
-               cudaMemcpyDeviceToHost);
-    for (int i = 0; i < batch_size; i++) {
-        std::cout << "候选框数量（GPU Decode后）：Batch " << i << ": "
-             << num_candidates[i] << " candidates after decode." << std::endl;
-    }
+    // int* num_candidates = new int[batch_size]{0};
+    // cudaMemcpy(num_candidates, d_num_candidates, batch_size * sizeof(int),
+    //            cudaMemcpyDeviceToHost);
+    // for (int i = 0; i < batch_size; i++) {
+    //     std::cout << "候选框数量（GPU Decode后）：Batch " << i << ": "
+    //          << num_candidates[i] << " candidates after decode." << std::endl;
+    // }
     // ========== 第二步：NMS ==========
     int grid_nms = (total_cand + block - 1) / block;
     nms_kernel<<<grid_nms, block>>>(d_candidates, d_num_candidates,
                                     d_final_boxes, d_num_boxes, iou_thresh,
                                     batch_size, MAX_CAND);
-    cudaDeviceSynchronize();
 
     cudaFree(d_candidates);
     cudaFree(d_num_candidates);

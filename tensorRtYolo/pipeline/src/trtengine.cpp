@@ -47,7 +47,6 @@ void TrtEngine::set_dynamic_batch(int batch_size) {
 void TrtEngine::infer(const GPUBuffer* buffer) {
     void* buf[2] = {buffer->gpu_input, buffer->gpu_output};
     context_->executeV2(buf);
-    cudaDeviceSynchronize();
     cudaError_t err2 = cudaGetLastError();
     if (err2 != cudaSuccess) {
         printf("CUDA 错误: %d %s\n", err2, cudaGetErrorString(err2));

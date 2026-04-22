@@ -201,9 +201,9 @@ void Pipeline::threadPreprocess() {
         batch_queue_.pop();
         lock.unlock();
         calculateBatchData(batch_data);
-        std::cout << "处理尺寸为 " << batch_data.src_w << "x"
-                  << batch_data.src_h << " 的图片，共 "
-                  << batch_data.images.size() << " 张" << std::endl;
+        // std::cout << "处理尺寸为 " << batch_data.src_w << "x"
+        //           << batch_data.src_h << " 的图片，共 "
+        //           << batch_data.images.size() << " 张" << std::endl;
 
         // GPU 预处理 → 直接写入推理输入显存
         pre_->batchProcess(batch_data, batch_data.gpu_buf->gpu_input);
