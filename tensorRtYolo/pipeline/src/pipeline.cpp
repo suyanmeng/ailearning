@@ -14,7 +14,9 @@ Pipeline::Pipeline(const std::string& engine_path) {
 
     // 初始化 GPU 内存池（4块最大Batch4显存）
     gpu_pool_ = std::make_unique<GPUMemoryPool>();
-    gpu_pool_->init(4, trt_->getInputMaxSize(), trt_->getOutputMaxSize());
+    gpu_pool_->init(trt_->getMaxBufferNum(), trt_->getMaxBatchSize(),
+                    trt_->getImgMaxSupportSize(), trt_->getInputMaxSize(),
+                    trt_->getOutputMaxSize(), trt_->getMaxBoxesSize());
 }
 
 Pipeline::~Pipeline() { stop(); }
@@ -259,6 +261,7 @@ void Pipeline::threadInferPost() {
 void Pipeline::calculateBatchData(BatchData& data) {
     data.src_h = data.images[0].mat->rows;
     data.src_w = data.images[0].mat->cols;
+    data.src_support_max_size = trt_->getImgMaxSupportSize();
     data.dst_w = trt_->getInputWidth();
     data.dst_h = trt_->getInputHeight();
     data.scale = std::min((float)data.dst_w / data.src_w,

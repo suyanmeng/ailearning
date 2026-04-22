@@ -15,8 +15,19 @@ class TrtEngine {
     int getOutputHeight() const { return out_height_; }
     void set_dynamic_batch(int batch_size);
     void infer(const GPUBuffer* buffer);
-    size_t getInputMaxSize();
-    size_t getOutputMaxSize();
+    int getMaxBufferNum() const { return MAX_BUFFER_NUM; }
+    int getMaxBatchSize() const { return MAX_BATCH; }
+    size_t getImgMaxSupportSize() const {
+        return MAX_IMG_SUPPORT_SIZE * sizeof(uint8_t);
+    }
+    size_t getInputMaxSize() const {
+        return input_channels_ * input_width_ * input_height_ *
+               sizeof(float);
+    }
+    size_t getOutputMaxSize() const {
+        return out_width_ * out_height_ * sizeof(float);
+    }
+    size_t getMaxBoxesSize() const { return MAX_BOXES * sizeof(BoxResult); }
 
    private:
     std::unique_ptr<nvinfer1::IRuntime> runtime_ = nullptr;
@@ -27,6 +38,10 @@ class TrtEngine {
     int input_height_ = 640;
     int out_width_ = 8400;
     int out_height_ = 84;
+    const static int MAX_BUFFER_NUM = 4;
     const static int MAX_BATCH = 4;
+    const static size_t MAX_IMG_SUPPORT_SIZE =
+        1920 * 1080 * 3;  // 支持的最大图片尺寸（字节）
+    const static int MAX_BOXES = 1024;
 };
 }  // namespace TensorRTYolo

@@ -100,6 +100,8 @@ void launch_postprocess_kernel(
     float conf_thresh,            // 0.25
     float iou_thresh,             // 0.45
     float scale, int pad_w, int pad_h, int img_w, int img_h,  // 原图宽高
+    TensorRTYolo::BoxResult* d_candidates,  // 中间候选框 GPU 地址[batch,1024]
+    int* d_num_candidates,  // 中间候选框数量 GPU 地址[batch,num]  
     TensorRTYolo::BoxResult* d_final_boxes,  // 输出：最终框 GPU 地址[batch,boxs]
     int* d_num_boxes,    // 输出：框数量 GPU 地址[batch,num]
     int batch_size       // 动态batch
@@ -107,12 +109,7 @@ void launch_postprocess_kernel(
     const int MAX_CAND = 1024;  // 每张图最多候选框
     int total_cand = MAX_CAND * batch_size;
 
-    TensorRTYolo::BoxResult* d_candidates;
-    int* d_num_candidates;
-
     // 分配batch式内存
-    cudaMalloc(&d_candidates, total_cand * sizeof(TensorRTYolo::BoxResult));
-    cudaMalloc(&d_num_candidates, batch_size * sizeof(int));
     cudaMemset(d_num_candidates, 0, batch_size * sizeof(int));
     cudaMemset(d_num_boxes, 0, batch_size * sizeof(int));
     /// ========== 第一步：Decode ==========
@@ -136,6 +133,4 @@ void launch_postprocess_kernel(
                                     d_final_boxes, d_num_boxes, iou_thresh,
                                     batch_size, MAX_CAND);
 
-    cudaFree(d_candidates);
-    cudaFree(d_num_candidates);
 }

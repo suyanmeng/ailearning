@@ -52,10 +52,4 @@ void TrtEngine::infer(const GPUBuffer* buffer) {
         printf("CUDA 错误: %d %s\n", err2, cudaGetErrorString(err2));
     }
 }
-size_t TrtEngine::getInputMaxSize() {
-    return MAX_BATCH * input_channels_ * input_width_ * input_height_ * sizeof(float);
-}
-size_t TrtEngine::getOutputMaxSize() {
-    return MAX_BATCH * out_width_ * out_height_ * sizeof(float);
-}
 }  // namespace TensorRTYolo
