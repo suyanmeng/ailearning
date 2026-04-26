@@ -16,7 +16,7 @@ class TrtEngine {
     int getOutputWidth() const { return out_width_; }
     int getOutputHeight() const { return out_height_; }
     void set_dynamic_batch(int batch_size);
-    void infer(const BatchData& batch_data);
+    void infer(const std::shared_ptr<const BatchData>& batch_data);
     int getMaxBufferNum() const { return MAX_BUFFER_NUM; }
     int getMaxBatch() const { return MAX_BATCH; }
     size_t getImgMaxSupportSize() const {
@@ -40,7 +40,7 @@ class TrtEngine {
     int input_height_ = 640;
     int out_width_ = 8400;
     int out_height_ = 84;
-    const static int MAX_BUFFER_NUM = 20;  // 最大Buffer数量（根据实际情况调整，至少要能满足最大Batch的输入输出）
+    const static int MAX_BUFFER_NUM = 16;  // 最大Buffer数量
     const static int MAX_BATCH = 8;
     const static size_t MAX_IMG_SUPPORT_SIZE =
         1280 * 720 * 3;  // 支持的最大图片尺寸（字节）

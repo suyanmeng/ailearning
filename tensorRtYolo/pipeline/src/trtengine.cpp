@@ -59,15 +59,15 @@ void TrtEngine::set_dynamic_batch(int batch_size) {
                                             input_height_, input_width_});
 }
 
-void TrtEngine::infer(const BatchData& batch_data) {
-    batch_data.gpu_buf->ctx->setInputShape(
+void TrtEngine::infer(const std::shared_ptr<const BatchData>& batch_data) {
+    batch_data->gpu_buf->ctx->setInputShape(
         engine_->getIOTensorName(0),
-        nvinfer1::Dims4{(int64_t)batch_data.images.size(), input_channels_,
+        nvinfer1::Dims4{(int64_t)batch_data->images.size(), input_channels_,
                         input_height_, input_width_});
-    batch_data.gpu_buf->ctx->setInputTensorAddress(
-        engine_->getIOTensorName(0), batch_data.gpu_buf->gpu_input);
-    batch_data.gpu_buf->ctx->setOutputTensorAddress(
-        engine_->getIOTensorName(1), batch_data.gpu_buf->gpu_output);
-    batch_data.gpu_buf->ctx->enqueueV3(batch_data.gpu_buf->cuda_stream);
+    batch_data->gpu_buf->ctx->setInputTensorAddress(
+        engine_->getIOTensorName(0), batch_data->gpu_buf->gpu_input);
+    batch_data->gpu_buf->ctx->setOutputTensorAddress(
+        engine_->getIOTensorName(1), batch_data->gpu_buf->gpu_output);
+    batch_data->gpu_buf->ctx->enqueueV3(batch_data->gpu_buf->cuda_stream);
 }
 }  // namespace TensorRTYolo

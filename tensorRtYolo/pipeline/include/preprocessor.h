@@ -8,12 +8,6 @@ class PreProcessor {
     PreProcessor() = default;
     ~PreProcessor() = default;
 
-    // 单图预处理
-    //ImageData process(const cv::Mat& img);
-    void batchProcess(const BatchData& batch_data);
-
-   private:
-    int m_input_w;
-    int m_input_h;
+    void batchProcess(const std::shared_ptr<const BatchData>& batch_data);
 };
 }  // namespace TensorRTYolo

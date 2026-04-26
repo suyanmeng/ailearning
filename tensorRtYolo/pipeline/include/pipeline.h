@@ -36,8 +36,9 @@ class Pipeline {
     void threadVisSave();
 
     // 工具函数
-    void calculateBatchData(BatchData& data);
-    void saveResult(BatchData& batch_data, const BatchResult& batch_result);
+    void calculateBatchData(const std::shared_ptr<BatchData>& data);
+    void saveResult(const std::shared_ptr<const BatchData>& batch_data,
+                          const std::shared_ptr<const BatchResult>& batch_result);
 
    private:
     std::string input_dir_;
@@ -57,9 +58,9 @@ class Pipeline {
     std::thread t_preprocess_;
     std::thread t_infer_post_;
 
-    std::queue<BatchData> batch_queue_;  // 待预处理队列
-    std::queue<std::pair<BatchData, BatchResult>>
-        preprocessed_queue_;  // 待推理队列
+    std::queue<std::shared_ptr<BatchData>> batch_queue_;  // 待处理队列
+    std::queue<std::pair<std::shared_ptr<BatchData>, std::shared_ptr<BatchResult>>>
+        infered_queue_;  // 推理后队列
 
     std::mutex mtx_batch_;
     std::mutex mtx_prep_;

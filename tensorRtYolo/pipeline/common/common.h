@@ -69,6 +69,8 @@ struct BatchData {
     int src_support_max_size = 0;  // 原图像素总字节数
     int dst_w = 640;               // 预处理后宽
     int dst_h = 640;               // 预处理后高
+    int out_width = 8400;         // 推理输出宽
+    int out_height = 84;          // 推理输出高
     float scale = 1.0f;            // 缩放比例 (new / original)
     int pad_w = 0;                 // 左右 padding
     int pad_h = 0;                 // 上下 padding
