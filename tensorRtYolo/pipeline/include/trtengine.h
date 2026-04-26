@@ -40,10 +40,10 @@ class TrtEngine {
     int input_height_ = 640;
     int out_width_ = 8400;
     int out_height_ = 84;
-    const static int MAX_BUFFER_NUM = 6;
-    const static int MAX_BATCH = 4;
+    const static int MAX_BUFFER_NUM = 20;  // 最大Buffer数量（根据实际情况调整，至少要能满足最大Batch的输入输出）
+    const static int MAX_BATCH = 8;
     const static size_t MAX_IMG_SUPPORT_SIZE =
-        1920 * 1080 * 3;  // 支持的最大图片尺寸（字节）
+        1280 * 720 * 3;  // 支持的最大图片尺寸（字节）
     const static int MAX_BOXES = 1024;
 };
 }  // namespace TensorRTYolo

@@ -68,6 +68,9 @@ class Pipeline {
 
     bool infer_stop_flag_ = false;
     bool prod_stop_flag_ = false;
+
+    long long total_images_ = 0;
+    std::chrono::_V2::steady_clock::time_point start_time_;
 };
 
 }  // namespace TensorRTYolo

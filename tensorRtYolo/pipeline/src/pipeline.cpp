@@ -4,7 +4,6 @@
 #include <chrono>
 #include <map>
 namespace TensorRTYolo {
-
 Pipeline::Pipeline(const std::string& engine_path) {
     pre_ = std::make_unique<PreProcessor>();
     trt_ = std::make_unique<TrtEngine>();
@@ -24,7 +23,8 @@ Pipeline::~Pipeline() { stop(); }
 
 void Pipeline::run() {
     std::cout << "[Pipeline] 启动 3 线程 GPU 流水线" << std::endl;
-
+    start_time_ = std::chrono::steady_clock::now();
+    total_images_=0;
     // 启动 3 个线程
     if (video_flag_) {
         t_producer_ = std::thread(&Pipeline::threadVideoProducer, this);
@@ -114,7 +114,7 @@ void Pipeline::threadImageProducer() {
             auto img =
                 std::make_shared<cv::Mat>(cv::imread(entry.path().string()));
             if (img->empty()) continue;
-
+            total_images_++;
             std::string img_name = entry.path().string().substr(
                 entry.path().string().find_last_of("/") + 1);
             w_h_imgs[{img->cols, img->rows}].push({img_name, img});
@@ -153,6 +153,7 @@ void Pipeline::threadVideoProducer() {
     std::queue<ImageData> imgs;
     while (cap_.read(frame) && !frame.empty()) {
         cnt++;
+        total_images_++;
         imgs.push(
             {std::to_string(cnt), std::make_shared<cv::Mat>(std::move(frame))});
         if (cnt == trt_->getMaxBatch()) {
@@ -265,7 +266,10 @@ void Pipeline::threadInfer() {
     std::lock_guard<std::mutex> lock2(mtx_prep_);
     infer_stop_flag_ = true;
     cv_prep_.notify_all();
-    std::cout << "[线程2] 预处理线程退出" << std::endl;
+    std::cout << "[线程2] 推理线程退出" << std::endl;
+    auto end_time = std::chrono::steady_clock::now();
+    auto total_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time_).count();
+    std::cout<<"\n===== 推理线程处理完成 =====\n"<<"总图片数:"<<(int)total_images_<<"总耗时:"<<total_time/1000.0<<" 秒,最终 FPS : "<<total_images_ * 1000.0 / total_time<<std::endl;
 }
 
 // 线程3：可视化 + 保存结果
@@ -294,7 +298,10 @@ void Pipeline::threadVisSave() {
         writer_.release();
         video_flag_ = false;
     }
-    std::cout << "[线程3] 推理线程退出" << std::endl;
+    std::cout << "[线程3] 可视化线程退出" << std::endl;
+    auto end_time = std::chrono::steady_clock::now();
+    auto total_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time_).count();
+    std::cout<<"\n===== 可视化线程处理完成 =====\n"<<"总图片数:"<<(int)total_images_<<"总耗时:"<<total_time/1000.0<<" 秒,最终 FPS : "<<total_images_ * 1000.0 / total_time<<std::endl;
 }
 
 void Pipeline::calculateBatchData(BatchData& data) {
