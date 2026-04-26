@@ -14,9 +14,10 @@ Pipeline::Pipeline(const std::string& engine_path) {
 
     // 初始化 GPU 内存池（4块最大Batch4显存）
     gpu_pool_ = std::make_unique<GPUMemoryPool>();
-    gpu_pool_->init(trt_->getMaxBufferNum(), trt_->getMaxBatchSize(),
+    gpu_pool_->init(trt_->getMaxBufferNum(), trt_->getMaxBatch(),
                     trt_->getImgMaxSupportSize(), trt_->getInputMaxSize(),
-                    trt_->getOutputMaxSize(), trt_->getMaxBoxesSize());
+                    trt_->getOutputMaxSize(), trt_->getMaxBoxesSize(),
+                    trt_->createExecutionContexts(trt_->getMaxBufferNum()));
 }
 
 Pipeline::~Pipeline() { stop(); }
@@ -30,8 +31,8 @@ void Pipeline::run() {
     } else {
         t_producer_ = std::thread(&Pipeline::threadImageProducer, this);
     }
-    t_preprocess_ = std::thread(&Pipeline::threadPreprocess, this);
-    t_infer_post_ = std::thread(&Pipeline::threadInferPost, this);
+    t_preprocess_ = std::thread(&Pipeline::threadInfer, this);
+    t_infer_post_ = std::thread(&Pipeline::threadVisSave, this);
 
     // 等待线程结束
     if (t_producer_.joinable()) t_producer_.join();
@@ -42,7 +43,7 @@ void Pipeline::run() {
 }
 
 void Pipeline::stop() {
-    stop_flag_ = true;
+    infer_stop_flag_ = true;
     cv_batch_.notify_all();
     cv_prep_.notify_all();
 }
@@ -123,7 +124,9 @@ void Pipeline::threadImageProducer() {
     for (auto& [w_h, imgs] : w_h_imgs) {
         while (!imgs.empty()) {
             BatchData data;
-            for (int i = 0; i < 4 && !imgs.empty(); i++) {
+            for (int i = 0; i < trt_->getMaxBatch() && !imgs.empty(); i++) {
+                // std::cout << "读取图片: " << imgs.front().name << " 尺寸: " << w_h.first
+                //           << "x" << w_h.second << std::endl;
                 data.images.push_back(imgs.front());
                 imgs.pop();
             }
@@ -137,7 +140,7 @@ void Pipeline::threadImageProducer() {
 
     // 生产结束
     std::lock_guard<std::mutex> lock(mtx_batch_);
-    stop_flag_ = true;
+    prod_stop_flag_ = true;
     cv_batch_.notify_all();
     std::cout << "[线程1] 生产完成" << std::endl;
 }
@@ -151,8 +154,8 @@ void Pipeline::threadVideoProducer() {
     while (cap_.read(frame) && !frame.empty()) {
         cnt++;
         imgs.push(
-            {std::to_string(cnt), std::make_shared<cv::Mat>(frame.clone())});
-        if (cnt == 4) {
+            {std::to_string(cnt), std::make_shared<cv::Mat>(std::move(frame))});
+        if (cnt == trt_->getMaxBatch()) {
             cnt = 0;
             BatchData data;
             while (!imgs.empty()) {
@@ -182,73 +185,109 @@ void Pipeline::threadVideoProducer() {
     }
     // 生产结束
     std::lock_guard<std::mutex> lock(mtx_batch_);
-    stop_flag_ = true;
+    prod_stop_flag_ = true;
     cv_batch_.notify_all();
     std::cout << "[视频线程] 读帧完成" << std::endl;
 }
 
-// 线程2：预处理（从内存池取显存）
-void Pipeline::threadPreprocess() {
+// 线程2：GPU预处理 + 推理 + 后处理
+void Pipeline::threadInfer() {
     while (true) {
-        if (stop_flag_ && batch_queue_.empty()) break;
+        if (prod_stop_flag_ && batch_queue_.empty()) break;
 
         std::unique_lock<std::mutex> lock(mtx_batch_);
         cv_batch_.wait(
-            lock, [this]() { return !batch_queue_.empty() || stop_flag_; });
+            lock, [this]() { return !batch_queue_.empty() || prod_stop_flag_; });
 
-        if (batch_queue_.empty() && stop_flag_) break;
+        if (batch_queue_.empty() && prod_stop_flag_) break;
 
         // 取一个Batch
-        auto batch_data = batch_queue_.front();
-        batch_queue_.pop();
+        std::queue<TensorRTYolo::BatchData> batch_queue;
+        swap(batch_queue, batch_queue_);
         lock.unlock();
-        calculateBatchData(batch_data);
-        // std::cout << "处理尺寸为 " << batch_data.src_w << "x"
-        //           << batch_data.src_h << " 的图片，共 "
-        //           << batch_data.images.size() << " 张" << std::endl;
+        //std::cout<< "当前待处理batch_queue: " << batch_queue.size() << std::endl;
+        while (!batch_queue.empty()) {
+            std::vector<
+                std::pair<TensorRTYolo::BatchData, TensorRTYolo::BatchResult>>
+                preprocessed_queue;
+            //std::cout << "当前待处理---------------- "  << std::endl;
+            for (int i = 0; i < trt_->getMaxBufferNum() && !batch_queue.empty();
+                 i++) {
+                auto batch_data = batch_queue.front();
+                batch_queue.pop();
+                calculateBatchData(batch_data);
+                // std::cout << "处理尺寸为 " << batch_data.src_w << "x"
+                //           << batch_data.src_h << " 的图片，共 "
+                //           << batch_data.images.size() << " 张" << std::endl;
 
-        // GPU 预处理 → 直接写入推理输入显存
-        pre_->batchProcess(batch_data, batch_data.gpu_buf->gpu_input);
-
-        std::lock_guard<std::mutex> lock2(mtx_prep_);
-        preprocessed_queue_.push(batch_data);
-        cv_prep_.notify_one();
+                // GPU 预处理 → 直接写入推理输入显存
+                pre_->batchProcess(batch_data);
+                trt_->infer(batch_data);
+                post_->batchProcess(batch_data);
+                preprocessed_queue.push_back(std::move(std::make_pair(batch_data, BatchResult())));
+            }
+            for(int i =0;i<preprocessed_queue.size();i++){
+                CUDA_CHECK(cudaStreamSynchronize(preprocessed_queue[i].first.gpu_buf->cuda_stream));
+            }
+            //获取结果
+            for(auto& pair : preprocessed_queue){
+                auto& batch_data = pair.first;
+                auto& ret = pair.second;
+                ret.imgs_ret.reserve(batch_data.images.size());
+                for (int i = 0; i < batch_data.images.size(); i++) {
+                    ImageResult img_boxes;
+                    img_boxes.boxes.reserve(batch_data.gpu_buf->h_last_box_num[i]);
+                    for (int j = 0; j < batch_data.gpu_buf->h_last_box_num[i]; j++) {
+                        // std::cout<< "Batch " << i << ", Box " << j << ": (" << batch_data.gpu_buf->h_last_boxes[i * trt_->getMaxBoxes() + j].x1
+                        //          << ", " << batch_data.gpu_buf->h_last_boxes[i * trt_->getMaxBoxes() + j].y1
+                        //          << ") - (" << batch_data.gpu_buf->h_last_boxes[i * trt_->getMaxBoxes() + j].x2
+                        //          << ", " << batch_data.gpu_buf->h_last_boxes[i * trt_->getMaxBoxes() + j].y2
+                        //          << "), class_id: " << batch_data.gpu_buf->h_last_boxes[i * trt_->getMaxBoxes() + j].class_id
+                        //          << ", score: " << batch_data.gpu_buf->h_last_boxes[i * trt_->getMaxBoxes() + j].score
+                        //          << std::endl;
+                        img_boxes.boxes.push_back(
+                            batch_data.gpu_buf->h_last_boxes[i *trt_->getMaxBoxes() + j]);
+                    }
+                    ret.imgs_ret.push_back(std::move(img_boxes));
+                    // std::cout << "图片: " << batch_data.images[i].name << " 检测到 "
+                    //         << batch_data.gpu_buf->h_last_box_num[i] << " 个框"
+                    //         << std::endl;
+                }
+            }
+            std::lock_guard<std::mutex> lock2(mtx_prep_);
+            for (auto& pair : preprocessed_queue) {
+                preprocessed_queue_.push(std::move(pair));
+            }
+            cv_prep_.notify_one();
+        }
     }
 
     std::lock_guard<std::mutex> lock2(mtx_prep_);
-    stop_flag_ = true;
+    infer_stop_flag_ = true;
     cv_prep_.notify_all();
     std::cout << "[线程2] 预处理线程退出" << std::endl;
 }
 
-// 线程3：推理 + 后处理（使用内存池 +回收）
-void Pipeline::threadInferPost() {
+// 线程3：可视化 + 保存结果
+void Pipeline::threadVisSave() {
     while (true) {
-        if (stop_flag_ && preprocessed_queue_.empty()) break;
+        if (infer_stop_flag_ && preprocessed_queue_.empty()) break;
 
         std::unique_lock<std::mutex> lock(mtx_prep_);
         cv_prep_.wait(lock, [this]() {
-            return !preprocessed_queue_.empty() || stop_flag_;
+            return !preprocessed_queue_.empty() || infer_stop_flag_;
         });
 
-        if (preprocessed_queue_.empty() && stop_flag_) break;
+        if (preprocessed_queue_.empty() && infer_stop_flag_) break;
 
-        auto batch_data = preprocessed_queue_.front();
+        auto batch = preprocessed_queue_.front();
         preprocessed_queue_.pop();
         lock.unlock();
 
-        // 推理
-        trt_->set_dynamic_batch(batch_data.images.size());
-        trt_->infer(batch_data.gpu_buf);
-
-        // 后处理
-        auto result =
-            post_->batchProcess(batch_data, batch_data.gpu_buf->gpu_output);
-
-        saveResult(batch_data, result);
+        saveResult(batch.first, batch.second);
 
         // 归还 GPU 显存
-        gpu_pool_->free(batch_data.gpu_buf);
+        gpu_pool_->free(batch.first.gpu_buf);
     }
     if (video_flag_) {
         cap_.release();
@@ -276,12 +315,14 @@ void Pipeline::calculateBatchData(BatchData& data) {
 void Pipeline::saveResult(BatchData& batch_data,
                           const BatchResult& batch_result) {
     for (int i = 0; i < batch_data.images.size(); i++) {
+        // std::cout << "正在保存图片: " << batch_data.images[i].name <<" 检测到 " << batch_result.imgs_ret[i].boxes.size() << " 个框"
+        //           << std::endl;
         vis_->draw(batch_data.images[i].mat, batch_result.imgs_ret[i].boxes);
         if (video_flag_) {
             writer_.write(*(batch_data.images[i].mat));
         } else {
             std::string save_path = output_dir_ + batch_data.images[i].name;
-            std::cout << "保存图片: " << save_path << std::endl;
+            // std::cout << "保存图片: " << save_path << std::endl;
             cv::imwrite(save_path, *(batch_data.images[i].mat));
         }
     }

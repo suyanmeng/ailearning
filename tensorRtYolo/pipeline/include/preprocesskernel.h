@@ -10,4 +10,4 @@
 //   keep_aspect_ratio : 是否保持宽高比（letterbox）
 void launch_preprocess_kernel(const uint8_t* src, int src_w, int src_h,
                               float* dst, int dst_w, int dst_h,float scale, int pad_w, int pad_h,
-                              bool keep_aspect_ratio, int batch);
+                              bool keep_aspect_ratio, int batch, cudaStream_t stream);

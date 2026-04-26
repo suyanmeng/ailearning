@@ -87,11 +87,11 @@ __global__ void bgr_to_rgb_norm_resize_kernel(const uint8_t* src, int src_w,
 void launch_preprocess_kernel(const uint8_t* src, int src_w, int src_h,
                               float* dst, int dst_w, int dst_h, float scale,
                               int pad_w, int pad_h, bool keep_aspect_ratio,
-                              int batch) {
+                              int batch, cudaStream_t stream) {
     dim3 threads(16, 16, 1);
     dim3 blocks((dst_w * batch + 15) / 16, (dst_h + 15) / 16, 3);
 
-    bgr_to_rgb_norm_resize_kernel<<<blocks, threads>>>(
+    bgr_to_rgb_norm_resize_kernel<<<blocks, threads, 0, stream>>>(
         src, src_w, src_h, dst, dst_w, dst_h, scale, pad_w, pad_h,
         keep_aspect_ratio, batch);
 }

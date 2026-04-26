@@ -38,18 +38,36 @@ bool TrtEngine::load_engine(const std::string& engine_path) {
     return true;
 }
 
+std::vector<std::unique_ptr<nvinfer1::IExecutionContext>>
+TrtEngine::createExecutionContexts(int num_contexts) {
+    std::vector<std::unique_ptr<nvinfer1::IExecutionContext>> contexts;
+    for (int i = 0; i < num_contexts; ++i) {
+        auto ctx = std::unique_ptr<nvinfer1::IExecutionContext>(
+            engine_->createExecutionContext());
+        if (!ctx) {
+            std::cerr << "错误：创建执行上下文失败 → " << i << std::endl;
+            return {};
+        }
+        contexts.push_back(std::move(ctx));
+    }
+    return contexts;
+}
+
 void TrtEngine::set_dynamic_batch(int batch_size) {
     context_->setInputShape(engine_->getIOTensorName(0),
                             nvinfer1::Dims4{batch_size, input_channels_,
                                             input_height_, input_width_});
 }
 
-void TrtEngine::infer(const GPUBuffer* buffer) {
-    void* buf[2] = {buffer->gpu_input, buffer->gpu_output};
-    context_->executeV2(buf);
-    cudaError_t err2 = cudaGetLastError();
-    if (err2 != cudaSuccess) {
-        printf("CUDA 错误: %d %s\n", err2, cudaGetErrorString(err2));
-    }
+void TrtEngine::infer(const BatchData& batch_data) {
+    batch_data.gpu_buf->ctx->setInputShape(
+        engine_->getIOTensorName(0),
+        nvinfer1::Dims4{(int64_t)batch_data.images.size(), input_channels_,
+                        input_height_, input_width_});
+    batch_data.gpu_buf->ctx->setInputTensorAddress(
+        engine_->getIOTensorName(0), batch_data.gpu_buf->gpu_input);
+    batch_data.gpu_buf->ctx->setOutputTensorAddress(
+        engine_->getIOTensorName(1), batch_data.gpu_buf->gpu_output);
+    batch_data.gpu_buf->ctx->enqueueV3(batch_data.gpu_buf->cuda_stream);
 }
 }  // namespace TensorRTYolo

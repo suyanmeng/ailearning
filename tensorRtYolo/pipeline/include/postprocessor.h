@@ -8,7 +8,7 @@ class PostProcessor {
     PostProcessor() = default;
     ~PostProcessor() = default;
 
-    BatchResult batchProcess(const BatchData& batch_data, float* gpu_output);
+    void batchProcess(const BatchData& batch_data);
 
    private:
     void decode_kernel(float* output, BoxResult* boxes, int batch_size,

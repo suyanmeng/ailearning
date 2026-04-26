@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "pipeline.h"
-// #define MULTI_IMAGE
+//#define MULTI_IMAGE
 #ifdef MULTI_IMAGE
 int main(int argc, char** argv) {
     // 1. 传入三个参数：engine路径 + 图片目录 + 保存目录
@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
         save_dir = argv[3];
     } else {
         engine_path = "/work/cuda/tensorRtYolo/models/engine/yolov8n.engine";
-        img_dir = "/work/cuda/yolo8Test/picture/";
+        img_dir = "/work/cuda/tensorRtYolo/pipeline/pic2/";
         save_dir = "/work/cuda/tensorRtYolo/pipeline/output/";
     }
     TensorRTYolo::Pipeline pipeline(engine_path);

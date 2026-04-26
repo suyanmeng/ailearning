@@ -47,13 +47,18 @@ struct BoxResult {
     int class_id = -1;
 };
 struct GPUBuffer {
-    uint8_t* gpu_img_ = nullptr;
+    cudaStream_t cuda_stream;
+    std::unique_ptr<nvinfer1::IExecutionContext> ctx;
+    uint8_t* cpu_img = nullptr;
+    uint8_t* gpu_img = nullptr;
     float* gpu_input = nullptr;
     float* gpu_output = nullptr;
-    BoxResult* d_boxes = nullptr;//推理产生的全部框的GPU地址[batch,1024]
+    BoxResult* d_boxes = nullptr;  // 推理产生的全部框的GPU地址[batch,1024]
     int* d_box_num = nullptr;
-    BoxResult* d_last_boxes = nullptr;//最终框的GPU地址[batch,boxs]
+    BoxResult* d_last_boxes = nullptr;  // 最终框的GPU地址[batch,boxs]
     int* d_last_box_num = nullptr;
+    BoxResult* h_last_boxes = nullptr;  // 最终框的CPU地址[batch,boxs]
+    int* h_last_box_num = nullptr;
     bool used = false;
 };
 // 批量输入数据（送给推理）

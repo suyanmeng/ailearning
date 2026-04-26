@@ -4,6 +4,9 @@ void TensorRTYolo::Visualizer::draw(std::shared_ptr<cv::Mat> img,
                                     const std::vector<BoxResult>& detections) {
     for (const auto& det : detections) {
         // 1. 画检测框
+        // std::cout<<"imgsize="<<img->cols<<"x"<<img->rows<<",Drawing box: (" << det.x1 << ", " << det.y1 << ") - ("
+        //          << det.x2 << ", " << det.y2 << "), class_id: "
+        //          << det.class_id << ", score: " << det.score << std::endl;
         rectangle(*img, cv::Point(det.x1, det.y1), cv::Point(det.x2, det.y2),
                   COCO_COLORS[det.class_id], 2);
 

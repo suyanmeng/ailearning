@@ -3,8 +3,8 @@
 __global__ void decode_kernel(const float* output, int num_anchors,
                               int num_classes, float conf_thresh, float scale,
                               int pad_w, int pad_h, int img_w, int img_h,
-                              TensorRTYolo::BoxResult* d_candidates, int* d_num_candidates,
-                              int batch_size) {
+                              TensorRTYolo::BoxResult* d_candidates,
+                              int* d_num_candidates, int batch_size) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= num_anchors * batch_size) return;  // 总anchor = batch × 8400
 
@@ -63,13 +63,14 @@ __device__ float iou(float x1, float y1, float x2, float y2, float xx1,
     return inter / (area + area2 - inter + 1e-6f);
 }
 
-__global__ void nms_kernel(TensorRTYolo::BoxResult* d_candidates, int* d_num_candidates,
-                           TensorRTYolo::BoxResult* d_output, int* d_num_output, float iou_thresh,
-                           int batch_size, int max_candidates) {
+__global__ void nms_kernel(TensorRTYolo::BoxResult* d_candidates,
+                           int* d_num_candidates,
+                           TensorRTYolo::BoxResult* d_output, int* d_num_output,
+                           float iou_thresh, int batch_size,
+                           int max_candidates) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int total = max_candidates * batch_size;
     if (i >= total) return;
-
     int b = i / max_candidates;
     int idx = i % max_candidates;
     if (idx >= d_num_candidates[b]) return;
@@ -90,6 +91,11 @@ __global__ void nms_kernel(TensorRTYolo::BoxResult* d_candidates, int* d_num_can
     if (keep) {
         int pos = atomicAdd(&d_num_output[b], 1);
         d_output[b * 1024 + pos] = a;
+        // printf("NMS Kernel: Processing pos %d/%d\n", pos, b);  // 调试输出
+        // printf("NMS Kernel: Batch %d, Box %d: (%f,%f) - (%f,%f) at pos %d
+        // with class_id %d and score %.4f\n",
+        //        b, pos, a.x1, a.y1,a.x2,a.y2, pos, a.class_id, a.score);  //
+        //        调试输出
     }
 }
 
@@ -101,11 +107,12 @@ void launch_postprocess_kernel(
     float iou_thresh,             // 0.45
     float scale, int pad_w, int pad_h, int img_w, int img_h,  // 原图宽高
     TensorRTYolo::BoxResult* d_candidates,  // 中间候选框 GPU 地址[batch,1024]
-    int* d_num_candidates,  // 中间候选框数量 GPU 地址[batch,num]  
-    TensorRTYolo::BoxResult* d_final_boxes,  // 输出：最终框 GPU 地址[batch,boxs]
-    int* d_num_boxes,    // 输出：框数量 GPU 地址[batch,num]
-    int batch_size       // 动态batch
-) {
+    int* d_num_candidates,  // 中间候选框数量 GPU 地址[batch,num]
+    TensorRTYolo::BoxResult*
+        d_final_boxes,  // 输出：最终框 GPU 地址[batch,boxs]
+    int* d_num_boxes,   // 输出：框数量 GPU 地址[batch,num]
+    int batch_size,     // 动态batch
+    cudaStream_t stream) {
     const int MAX_CAND = 1024;  // 每张图最多候选框
     int total_cand = MAX_CAND * batch_size;
 
@@ -116,21 +123,23 @@ void launch_postprocess_kernel(
     int block = 256;
     int grid_decode = (num_anchors * batch_size + block - 1) / block;
 
-    decode_kernel<<<grid_decode, block>>>(
+    decode_kernel<<<grid_decode, block, 0, stream>>>(
         d_model_output, num_anchors, num_classes, conf_thresh, scale, pad_w,
         pad_h, img_w, img_h, d_candidates, d_num_candidates, batch_size);
 
     // int* num_candidates = new int[batch_size]{0};
-    // cudaMemcpy(num_candidates, d_num_candidates, batch_size * sizeof(int),
-    //            cudaMemcpyDeviceToHost);
+    // cudaMemcpyAsync(num_candidates, d_num_candidates, batch_size *
+    // sizeof(int),
+    //            cudaMemcpyDeviceToHost, stream);
+    // CUDA_CHECK(cudaStreamSynchronize(stream));
     // for (int i = 0; i < batch_size; i++) {
     //     std::cout << "候选框数量（GPU Decode后）：Batch " << i << ": "
-    //          << num_candidates[i] << " candidates after decode." << std::endl;
+    //          << num_candidates[i] << " candidates after decode." <<
+    //          std::endl;
     // }
     // ========== 第二步：NMS ==========
     int grid_nms = (total_cand + block - 1) / block;
-    nms_kernel<<<grid_nms, block>>>(d_candidates, d_num_candidates,
-                                    d_final_boxes, d_num_boxes, iou_thresh,
-                                    batch_size, MAX_CAND);
-
+    nms_kernel<<<grid_nms, block, 0, stream>>>(
+        d_candidates, d_num_candidates, d_final_boxes, d_num_boxes, iou_thresh,
+        batch_size, MAX_CAND);
 }

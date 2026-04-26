@@ -10,7 +10,7 @@ class PreProcessor {
 
     // 单图预处理
     //ImageData process(const cv::Mat& img);
-    void batchProcess(const BatchData& batch_data, float* gpu_input);
+    void batchProcess(const BatchData& batch_data);
 
    private:
     int m_input_w;
