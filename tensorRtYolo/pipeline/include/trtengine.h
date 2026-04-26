@@ -43,7 +43,7 @@ class TrtEngine {
     const static int MAX_BUFFER_NUM = 16;  // 最大Buffer数量
     const static int MAX_BATCH = 8;
     const static size_t MAX_IMG_SUPPORT_SIZE =
-        1280 * 720 * 3;  // 支持的最大图片尺寸（字节）
+        1920 * 1080 * 3;  // 支持的最大图片尺寸（字节）
     const static int MAX_BOXES = 1024;
 };
 }  // namespace TensorRTYolo
