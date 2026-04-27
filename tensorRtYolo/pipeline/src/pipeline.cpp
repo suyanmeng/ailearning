@@ -106,6 +106,7 @@ bool Pipeline::setVideoPath(const std::string& video_src_path,
 
 // 线程1：生产Batch（读图片）
 void Pipeline::threadImageProducer() {
+    pthread_setname_np(pthread_self(), "threadImageProducer");
     if (!fs::exists(input_dir_)) return;
 
     std::map<std::pair<int, int>, std::queue<ImageData>> w_h_imgs;
@@ -146,6 +147,7 @@ void Pipeline::threadImageProducer() {
 }
 
 void Pipeline::threadVideoProducer() {
+    pthread_setname_np(pthread_self(), "threadVideoProducer");
     if (!cap_.isOpened()) return;
 
     cv::Mat frame;
@@ -193,6 +195,7 @@ void Pipeline::threadVideoProducer() {
 
 // 线程2：GPU预处理 + 推理 + 后处理
 void Pipeline::threadInfer() {
+    pthread_setname_np(pthread_self(), "threadInfer");
     while (true) {
         if (prod_stop_flag_ && batch_queue_.empty()) break;
 
@@ -274,6 +277,7 @@ void Pipeline::threadInfer() {
 
 // 线程3：可视化 + 保存结果
 void Pipeline::threadVisSave() {
+    pthread_setname_np(pthread_self(), "threadVisSave");
     while (true) {
         if (infer_stop_flag_ && infered_queue_.empty()) break;
 
