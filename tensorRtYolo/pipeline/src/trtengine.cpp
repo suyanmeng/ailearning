@@ -35,6 +35,7 @@ bool TrtEngine::load_engine(const std::string& engine_path) {
     dims = context_->getTensorShape(engine_->getIOTensorName(1));
     out_height_ = dims.d[1];
     out_width_ = dims.d[2];
+    printEngineInfo();
     return true;
 }
 
@@ -69,5 +70,33 @@ void TrtEngine::infer(const std::shared_ptr<const BatchData>& batch_data) {
     batch_data->gpu_buf->ctx->setOutputTensorAddress(
         engine_->getIOTensorName(1), batch_data->gpu_buf->gpu_output);
     batch_data->gpu_buf->ctx->enqueueV3(batch_data->gpu_buf->cuda_stream);
+}
+void TrtEngine::printEngineInfo() {
+    int nbIOTensors = engine_->getNbIOTensors();
+    std::cout << "IO张量总数: " << nbIOTensors << "\n";
+
+    for (int i = 0; i < nbIOTensors; ++i) {
+        const char* name = engine_->getIOTensorName(i);
+        nvinfer1::TensorIOMode mode = engine_->getTensorIOMode(name);
+        bool isInput = (mode == nvinfer1::TensorIOMode::kINPUT);
+        const char* ioStr = isInput ? "输入" : "输出";
+        nvinfer1::DataType dtype = engine_->getTensorDataType(name);
+        const char* dtypeStr = "未知";
+        if (dtype == nvinfer1::DataType::kFLOAT) dtypeStr = "FP32";
+        if (dtype == nvinfer1::DataType::kHALF) dtypeStr = "FP16";
+        if (dtype == nvinfer1::DataType::kINT8) dtypeStr = "INT8";
+        nvinfer1::Dims dims = context_->getTensorShape(name);
+        std::cout << "----------------------------------------\n";
+        std::cout << "索引: " << i << "\n";
+        std::cout << "名称: " << name << "\n";
+        std::cout << "类型: " << ioStr << "\n";
+        std::cout << "数据类型: " << dtypeStr << "\n";
+        std::cout << "形状: ";
+        for (int j = 0; j < dims.nbDims; j++) {
+            std::cout << dims.d[j] << " ";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "----------------------------------------\n";
 }
 }  // namespace TensorRTYolo

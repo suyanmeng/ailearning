@@ -32,6 +32,7 @@ class TrtEngine {
     size_t getMaxBoxes() const { return MAX_BOXES; }
 
    private:
+    void printEngineInfo();
     std::unique_ptr<nvinfer1::IRuntime> runtime_ = nullptr;
     std::unique_ptr<nvinfer1::ICudaEngine> engine_ = nullptr;
     std::unique_ptr<nvinfer1::IExecutionContext> context_ = nullptr;
