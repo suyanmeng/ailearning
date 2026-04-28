@@ -35,6 +35,7 @@ bool TrtEngine::load_engine(const std::string& engine_path) {
     dims = context_->getTensorShape(engine_->getIOTensorName(1));
     out_height_ = dims.d[1];
     out_width_ = dims.d[2];
+    dtype_ = engine_->getTensorDataType(engine_->getIOTensorName(0));
     printEngineInfo();
     return true;
 }

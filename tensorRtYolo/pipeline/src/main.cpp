@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
 #ifdef VEDIO_0
 int main() {
     const std::string engine_path =
-        "/work/cuda/tensorRtYolo/models/engine/yolov8n_b16_fp32.engine";
+        "/work/cuda/tensorRtYolo/models/engine/yolov8n_b16_fp16.engine";
     const std::string mv_path = "/work/cuda/yolo8Test/resource/demo0.mp4";
     const std::string save_mv_path =
         "/work/cuda/tensorRtYolo/pipeline/output/demo0.mp4";
