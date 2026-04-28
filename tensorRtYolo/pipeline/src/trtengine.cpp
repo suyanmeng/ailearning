@@ -99,4 +99,10 @@ void TrtEngine::printEngineInfo() {
     }
     std::cout << "----------------------------------------\n";
 }
+size_t TrtEngine::getSizeByDataType(nvinfer1::DataType dtype) const {
+    if (dtype == nvinfer1::DataType::kFLOAT) return sizeof(float);
+    if (dtype == nvinfer1::DataType::kHALF) return sizeof(__half);
+    if (dtype == nvinfer1::DataType::kINT8) return sizeof(int8_t);
+    return size_t();
+}
 }  // namespace TensorRTYolo

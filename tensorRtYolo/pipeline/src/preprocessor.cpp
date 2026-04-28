@@ -19,7 +19,7 @@ void PreProcessor::batchProcess(const std::shared_ptr<const BatchData>& batch_da
         batch_data->gpu_buf->gpu_img, batch_data->src_w, batch_data->src_h,
         batch_data->gpu_buf->gpu_input, batch_data->dst_w, batch_data->dst_h,
         batch_data->scale, batch_data->pad_w, batch_data->pad_h, true, batch_size,
-        batch_data->gpu_buf->cuda_stream);
+        batch_data->gpu_buf->cuda_stream, batch_data->gpu_buf->d_data_type);
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         printf("CUDA 错误: %s\n", cudaGetErrorString(err));

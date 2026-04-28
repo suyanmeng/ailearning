@@ -16,7 +16,8 @@ Pipeline::Pipeline(const std::string& engine_path) {
     gpu_pool_->init(trt_->getMaxBufferNum(), trt_->getMaxBatch(),
                     trt_->getImgMaxSupportSize(), trt_->getInputMaxSize(),
                     trt_->getOutputMaxSize(), trt_->getMaxBoxesSize(),
-                    trt_->createExecutionContexts(trt_->getMaxBufferNum()));
+                    trt_->createExecutionContexts(trt_->getMaxBufferNum()),
+                    trt_->getDataType());
 }
 
 Pipeline::~Pipeline() { stop(); }

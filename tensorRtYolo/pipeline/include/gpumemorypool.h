@@ -28,7 +28,8 @@ class GPUMemoryPool {
     void init(
         int num_buffers, int max_batch, size_t max_img_size,
         size_t max_intput_size, size_t max_output_size, size_t max_boxes_size,
-        std::vector<std::unique_ptr<nvinfer1::IExecutionContext>> contexts) {
+        std::vector<std::unique_ptr<nvinfer1::IExecutionContext>> contexts,
+        nvinfer1::DataType data_type = nvinfer1::DataType::kFLOAT) {
         buffers_.resize(num_buffers);
         max_batch_ = max_batch;
         for (int i = 0; i < num_buffers; ++i) {
@@ -58,6 +59,7 @@ class GPUMemoryPool {
                                      max_batch * sizeof(int),
                                      cudaHostAllocDefault));
             buffers_[i].used = false;
+            buffers_[i].d_data_type = data_type;
         }
     }
 

@@ -1,7 +1,7 @@
 #pragma once
 #include <NvInfer.h>
 #include <cuda_runtime.h>
-
+#include <cuda_fp16.h> 
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -51,8 +51,8 @@ struct GPUBuffer {
     std::unique_ptr<nvinfer1::IExecutionContext> ctx;
     uint8_t* cpu_img = nullptr;
     uint8_t* gpu_img = nullptr;
-    float* gpu_input = nullptr;
-    float* gpu_output = nullptr;
+    void* gpu_input = nullptr;
+    void* gpu_output = nullptr;
     BoxResult* d_boxes = nullptr;  // 推理产生的全部框的GPU地址[batch,1024]
     int* d_box_num = nullptr;
     BoxResult* d_last_boxes = nullptr;  // 最终框的GPU地址[batch,boxs]
@@ -60,6 +60,7 @@ struct GPUBuffer {
     BoxResult* h_last_boxes = nullptr;  // 最终框的CPU地址[batch,boxs]
     int* h_last_box_num = nullptr;
     bool used = false;
+    nvinfer1::DataType d_data_type = nvinfer1::DataType::kFLOAT;
 };
 // 批量输入数据（送给推理）
 struct BatchData {

@@ -1,8 +1,9 @@
 #include "postprocesskernel.h"
 
-__global__ void decode_kernel(const float* output, int num_anchors,
-                              int num_classes, float conf_thresh, float scale,
-                              int pad_w, int pad_h, int img_w, int img_h,
+template <typename T>
+__global__ void decode_kernel(const T* output, int num_anchors, int num_classes,
+                              float conf_thresh, float scale, int pad_w,
+                              int pad_h, int img_w, int img_h,
                               TensorRTYolo::BoxResult* d_candidates,
                               int* d_num_candidates, int batch_size) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -11,25 +12,32 @@ __global__ void decode_kernel(const float* output, int num_anchors,
     // 计算当前属于第几张图
     int b = i / num_anchors;
     int anchor_idx = i % num_anchors;
-    const float* feat = output + b * (num_classes + 4) * num_anchors;
+    const T* feat = output + b * (num_classes + 4) * num_anchors;
 
-    float cx = feat[anchor_idx];
-    float cy = feat[num_anchors + anchor_idx];
-    float w = feat[2 * num_anchors + anchor_idx];
-    float h = feat[3 * num_anchors + anchor_idx];
+    auto to_float = [](const T& val) {
+        if constexpr (std::is_same_v<T, __half>) {
+            return __half2float(val);
+        } else {
+            return (float)val;
+        }
+    };
+
+    float cx = to_float(feat[anchor_idx]);
+    float cy = to_float(feat[num_anchors + anchor_idx]);
+    float w = to_float(feat[2 * num_anchors + anchor_idx]);
+    float h = to_float(feat[3 * num_anchors + anchor_idx]);
 
     // 最大类别置信度
     float max_conf = 0.0f;
     int class_id = 0;
     for (int j = 0; j < num_classes; j++) {
-        float conf = feat[(4 + j) * num_anchors + anchor_idx];
+        float conf = to_float(feat[(4 + j) * num_anchors + anchor_idx]);
         if (conf > max_conf) {
             max_conf = conf;
             class_id = j;
         }
     }
 
-    // 低置信度过滤
     if (max_conf < conf_thresh) return;
 
     // 坐标还原
@@ -39,12 +47,12 @@ __global__ void decode_kernel(const float* output, int num_anchors,
     float y2 = (cy + h * 0.5f - pad_h) / scale;
 
     // 边界裁剪
-    x1 = max(0.0f, x1);
-    y1 = max(0.0f, y1);
-    x2 = min((float)img_w - 1, x2);
-    y2 = min((float)img_h - 1, y2);
+    x1 = fmaxf(0.0f, x1);
+    y1 = fmaxf(0.0f, y1);
+    x2 = fminf((float)img_w - 1.0f, x2);
+    y2 = fminf((float)img_h - 1.0f, y2);
 
-    // 原子计数写入当前 batch 的候选区
+    // 原子计数
     int pos = atomicAdd(&d_num_candidates[b], 1);
     d_candidates[b * 1024 + pos] = {x1, y1, x2, y2, max_conf, class_id};
 }
@@ -100,11 +108,11 @@ __global__ void nms_kernel(TensorRTYolo::BoxResult* d_candidates,
 }
 
 void launch_postprocess_kernel(
-    const float* d_model_output,  // 模型输出 GPU 地址
-    int num_anchors,              // 8400
-    int num_classes,              // 80
-    float conf_thresh,            // 0.25
-    float iou_thresh,             // 0.45
+    const void* d_model_output,  // 模型输出 GPU 地址
+    int num_anchors,             // 8400
+    int num_classes,             // 80
+    float conf_thresh,           // 0.25
+    float iou_thresh,            // 0.45
     float scale, int pad_w, int pad_h, int img_w, int img_h,  // 原图宽高
     TensorRTYolo::BoxResult* d_candidates,  // 中间候选框 GPU 地址[batch,1024]
     int* d_num_candidates,  // 中间候选框数量 GPU 地址[batch,num]
@@ -112,20 +120,43 @@ void launch_postprocess_kernel(
         d_final_boxes,  // 输出：最终框 GPU 地址[batch,boxs]
     int* d_num_boxes,   // 输出：框数量 GPU 地址[batch,num]
     int batch_size,     // 动态batch
-    cudaStream_t stream) {
+    cudaStream_t stream, nvinfer1::DataType d_model_output_type) {
     const int MAX_CAND = 1024;  // 每张图最多候选框
     int total_cand = MAX_CAND * batch_size;
 
     // 分配batch式内存
-    cudaMemset(d_num_candidates, 0, batch_size * sizeof(int));
-    cudaMemset(d_num_boxes, 0, batch_size * sizeof(int));
+    cudaMemsetAsync(d_num_candidates, 0, batch_size * sizeof(int), stream);
+    cudaMemsetAsync(d_num_boxes, 0, batch_size * sizeof(int), stream);
     /// ========== 第一步：Decode ==========
     int block = 256;
     int grid_decode = (num_anchors * batch_size + block - 1) / block;
 
-    decode_kernel<<<grid_decode, block, 0, stream>>>(
-        d_model_output, num_anchors, num_classes, conf_thresh, scale, pad_w,
-        pad_h, img_w, img_h, d_candidates, d_num_candidates, batch_size);
+    switch (d_model_output_type) {
+        case nvinfer1::DataType::kFLOAT:
+            decode_kernel<float><<<grid_decode, block, 0, stream>>>(
+                static_cast<const float*>(d_model_output), num_anchors,
+                num_classes, conf_thresh, scale, pad_w, pad_h, img_w, img_h,
+                d_candidates, d_num_candidates, batch_size);
+            break;
+        case nvinfer1::DataType::kHALF:
+            decode_kernel<__half><<<grid_decode, block, 0, stream>>>(
+                static_cast<const __half*>(d_model_output), num_anchors,
+                num_classes, conf_thresh, scale, pad_w, pad_h, img_w, img_h,
+                d_candidates, d_num_candidates, batch_size);
+            break;
+        case nvinfer1::DataType::kINT8:
+            decode_kernel<int8_t><<<grid_decode, block, 0, stream>>>(
+                static_cast<const int8_t*>(d_model_output), num_anchors,
+                num_classes, conf_thresh, scale, pad_w, pad_h, img_w, img_h,
+                d_candidates, d_num_candidates, batch_size);
+            break;
+        default:
+            break;
+    }
+
+    // decode_kernel<<<grid_decode, block, 0, stream>>>(
+    //     d_model_output, num_anchors, num_classes, conf_thresh, scale, pad_w,
+    //     pad_h, img_w, img_h, d_candidates, d_num_candidates, batch_size);
 
     // int* num_candidates = new int[batch_size]{0};
     // cudaMemcpyAsync(num_candidates, d_num_candidates, batch_size *

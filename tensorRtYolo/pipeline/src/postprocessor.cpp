@@ -12,7 +12,7 @@ void TensorRTYolo::PostProcessor::batchProcess(const std::shared_ptr<const Batch
         batch_data->src_w, batch_data->src_h, batch_data->gpu_buf->d_boxes,
         batch_data->gpu_buf->d_box_num, batch_data->gpu_buf->d_last_boxes,
         batch_data->gpu_buf->d_last_box_num, batch_data->images.size(),
-        batch_data->gpu_buf->cuda_stream);
+        batch_data->gpu_buf->cuda_stream, batch_data->gpu_buf->d_data_type);
 
     CUDA_CHECK(cudaMemcpyAsync(
         batch_data->gpu_buf->h_last_box_num, batch_data->gpu_buf->d_last_box_num,

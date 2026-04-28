@@ -5,9 +5,12 @@
 // 参数说明：
 //   src        : 输入图像 (uint8_t, HWC布局, BGR顺序)
 //   src_w, src_h: 输入图像宽高
-//   dst        : 输出张量 (float, CHW布局, RGB顺序, 归一化0~1)
+//   dst        : 输出张量 (float/__half, CHW布局, RGB顺序, 归一化0~1)
 //   dst_w, dst_h: 目标尺寸
 //   keep_aspect_ratio : 是否保持宽高比（letterbox）
+//   dst_data_type : 输出数据类型（float/half/int8）
 void launch_preprocess_kernel(const uint8_t* src, int src_w, int src_h,
-                              float* dst, int dst_w, int dst_h,float scale, int pad_w, int pad_h,
-                              bool keep_aspect_ratio, int batch, cudaStream_t stream);
+                              void* dst, int dst_w, int dst_h, float scale,
+                              int pad_w, int pad_h, bool keep_aspect_ratio,
+                              int batch, cudaStream_t stream,
+                              nvinfer1::DataType dst_data_type);

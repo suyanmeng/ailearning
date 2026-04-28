@@ -1,7 +1,8 @@
 #include "preprocesskernel.h"
 
+template <typename T>
 __global__ void bgr_to_rgb_norm_resize_kernel(const uint8_t* src, int src_w,
-                                              int src_h, float* dst, int dst_w,
+                                              int src_h, T* dst, int dst_w,
                                               int dst_h, float scale, int pad_w,
                                               int pad_h, bool keep_aspect_ratio,
                                               int batch) {
@@ -85,13 +86,32 @@ __global__ void bgr_to_rgb_norm_resize_kernel(const uint8_t* src, int src_w,
 }
 
 void launch_preprocess_kernel(const uint8_t* src, int src_w, int src_h,
-                              float* dst, int dst_w, int dst_h, float scale,
+                              void* dst, int dst_w, int dst_h, float scale,
                               int pad_w, int pad_h, bool keep_aspect_ratio,
-                              int batch, cudaStream_t stream) {
+                              int batch, cudaStream_t stream,
+                              nvinfer1::DataType dst_data_type) {
     dim3 threads(16, 16, 1);
     dim3 blocks((dst_w * batch + 15) / 16, (dst_h + 15) / 16, 3);
-
-    bgr_to_rgb_norm_resize_kernel<<<blocks, threads, 0, stream>>>(
-        src, src_w, src_h, dst, dst_w, dst_h, scale, pad_w, pad_h,
-        keep_aspect_ratio, batch);
+    switch (dst_data_type) {
+        case nvinfer1::DataType::kFLOAT:
+            bgr_to_rgb_norm_resize_kernel<float>
+                <<<blocks, threads, 0, stream>>>(
+                    src, src_w, src_h, static_cast<float*>(dst), dst_w, dst_h,
+                    scale, pad_w, pad_h, keep_aspect_ratio, batch);
+            break;
+        case nvinfer1::DataType::kHALF:
+            bgr_to_rgb_norm_resize_kernel<__half>
+                <<<blocks, threads, 0, stream>>>(
+                    src, src_w, src_h, static_cast<__half*>(dst), dst_w, dst_h,
+                    scale, pad_w, pad_h, keep_aspect_ratio, batch);
+            break;
+        case nvinfer1::DataType::kINT8:
+            bgr_to_rgb_norm_resize_kernel<uint8_t>
+                <<<blocks, threads, 0, stream>>>(
+                    src, src_w, src_h, static_cast<uint8_t*>(dst), dst_w, dst_h,
+                    scale, pad_w, pad_h, keep_aspect_ratio, batch);
+            break;
+        default:
+            break;
+    }
 }
