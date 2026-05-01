@@ -197,6 +197,10 @@ void Pipeline::threadVideoProducer() {
 // 线程2：GPU预处理 + 推理 + 后处理
 void Pipeline::threadInfer() {
     pthread_setname_np(pthread_self(), "threadInfer");
+    cudaEvent_t start, stop;
+    CUDA_CHECK(cudaEventCreate(&start));
+    CUDA_CHECK(cudaEventCreate(&stop));
+    bool first_flag = true;
     while (true) {
         if (prod_stop_flag_ && batch_queue_.empty()) break;
 
@@ -205,6 +209,11 @@ void Pipeline::threadInfer() {
             lock, [this]() { return !batch_queue_.empty() || prod_stop_flag_; });
 
         if (batch_queue_.empty() && prod_stop_flag_) break;
+        if(first_flag)
+        {
+            CUDA_CHECK(cudaEventRecord(start));
+            first_flag = false;
+        }
 
         // 取一个Batch
         std::queue<std::shared_ptr<TensorRTYolo::BatchData>> batch_queue;
@@ -253,6 +262,8 @@ void Pipeline::threadInfer() {
                         img_boxes.boxes.push_back(
                             batch_data->gpu_buf->h_last_boxes[i *trt_->getMaxBoxes() + j]);
                     }
+                    // 归还 GPU 显存
+                    gpu_pool_->free(batch_data->gpu_buf);
                     ret->imgs_ret.push_back(std::move(img_boxes));
                     // std::cout << "图片: " << batch_data->images[i].name << " 检测到 "
                     //         << batch_data->gpu_buf->h_last_box_num[i] << " 个框"
@@ -266,14 +277,24 @@ void Pipeline::threadInfer() {
             cv_prep_.notify_one();
         }
     }
+    CUDA_CHECK(cudaEventRecord(stop));
+    CUDA_CHECK(cudaEventSynchronize(stop));
+    float ms = 0.0f;
+    CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
+
+    CUDA_CHECK(cudaEventDestroy(start));
+    CUDA_CHECK(cudaEventDestroy(stop));
+    std::cout << "\n===== 推理线程处理完成cuda =====\n"
+              << "总图片数:" << (int)total_images_ << " 总耗时:" << ms / 1000.0
+              << " 秒,最终 FPS : " << total_images_ * 1000.0 / ms << std::endl;
 
     std::lock_guard<std::mutex> lock2(mtx_prep_);
     infer_stop_flag_ = true;
     cv_prep_.notify_all();
-    std::cout << "[线程2] 推理线程退出" << std::endl;
-    auto end_time = std::chrono::steady_clock::now();
-    auto total_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time_).count();
-    std::cout<<"\n===== 推理线程处理完成 =====\n"<<"总图片数:"<<(int)total_images_<<"总耗时:"<<total_time/1000.0<<" 秒,最终 FPS : "<<total_images_ * 1000.0 / total_time<<std::endl;
+    // std::cout << "[线程2] 推理线程退出" << std::endl;
+    // auto end_time = std::chrono::steady_clock::now();
+    // auto total_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time_).count();
+    // std::cout<<"\n===== 推理线程处理完成 =====\n"<<"总图片数:"<<(int)total_images_<<"总耗时:"<<total_time/1000.0<<" 秒,最终 FPS : "<<total_images_ * 1000.0 / total_time<<std::endl;
 }
 
 // 线程3：可视化 + 保存结果
@@ -295,8 +316,6 @@ void Pipeline::threadVisSave() {
 
         saveResult(batch.first, batch.second);
 
-        // 归还 GPU 显存
-        gpu_pool_->free(batch.first->gpu_buf);
     }
     if (video_flag_) {
         cap_.release();
