@@ -4,6 +4,7 @@ project(tensorRtYolo)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Debug)
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -g -G -arch=sm_89)
+#set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -O3 -lineinfo -arch=sm_89)
 #set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -arch=sm_89)
 # CUDA
 find_package(CUDA REQUIRED)

@@ -100,9 +100,9 @@ bool EngineBuilder::buildOnnxToEngine(const std::string& onnx_path,
         profile->setDimensions(name, nvinfer1::OptProfileSelector::kMIN,
                                nvinfer1::Dims4{1, 3, 640, 640});
         profile->setDimensions(name, nvinfer1::OptProfileSelector::kOPT,
-                               nvinfer1::Dims4{4, 3, 640, 640});
-        profile->setDimensions(name, nvinfer1::OptProfileSelector::kMAX,
                                nvinfer1::Dims4{8, 3, 640, 640});
+        profile->setDimensions(name, nvinfer1::OptProfileSelector::kMAX,
+                               nvinfer1::Dims4{16, 3, 640, 640});
 
         config->addOptimizationProfile(profile);
     }
@@ -113,7 +113,6 @@ bool EngineBuilder::buildOnnxToEngine(const std::string& onnx_path,
     config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE,
                                4ULL << 30);
     config->setFlag(nvinfer1::BuilderFlag::kFP16);
-
     // ======================
     // 5. 构建 & 保存引擎
     // ======================

@@ -36,6 +36,8 @@ inline Logger gLogger;
 struct ImageData {
     std::string name;
     std::shared_ptr<cv::Mat> mat;
+    ImageData() = default;
+    ImageData(const std::string& n, std::shared_ptr<cv::Mat> m) : name(n), mat(m) {}
 };
 // 检测框结构体
 struct BoxResult {
