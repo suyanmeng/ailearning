@@ -6,3 +6,7 @@ build
 *.jpg
 *.mp4
 *.png
+perf*
+ncu*
+c++111417*
+mtp*

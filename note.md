@@ -27,7 +27,15 @@ Thread 最小调度单位：Warp（32 个 Thread 一组）
 分支分化会让 Warp 变慢，所以并行逻辑要尽量统一
 
 # 4.生成性能报告
-nsys profile --trace-fork-before-exec=true --trace=cuda --cuda-memory-usage=true --cudabacktrace=true --stats=true -o naive_matmul_detailed ./matmul_naive
+
+nsys profile --stats=true  -o report_release_901 ./tensorRtYolo
+nsys profile --trace-fork-before-exec=true --trace=cuda --cuda-memory-usage=true --cudabacktrace=true --stats=true -o report1 ./tensorRtYolo
+--trace-fork-before-exec=true 追踪多进程 /fork/exec 创建的子进程
+--trace=cuda 只追踪 CUDA 相关行为
+--cuda-memory-usage=true 记录显存随时间的变化曲线
+--cudabacktrace=true CUDA API 调用栈回溯 哪一行代码调用了 cudaMemcpy
+--stats=true 自动生成终端统计报表
+ncu --metrics l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum ./tensorRtYolo
 nsys命令一直报错，SKIPPED: /tmp/nsys-report-1c78.sqlite does not contain CUDA kernel data.does not contain GPU memory data.核心原因是显卡驱动太新，要用新版本的nsys才能抓到数据，不能用cuda安装自带的
 ncu --set basic --section SpeedOfLight ./heavy_test
 ncu报错==ERROR== Failed to prepare kernel for profiling   Windows 端开了允许查看gpu计数权限，但是WSL2 内部的驱动模块参数还是默认的“禁止”。创建一个配置文件来强制开启权限
