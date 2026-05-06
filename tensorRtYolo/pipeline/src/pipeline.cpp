@@ -66,13 +66,13 @@ bool Pipeline::setImageDir(const std::string& input_dir,
         }
     }
     input_dir_ = input_dir;
-    output_dir_ = output_dir;
+    output_dir_ = output_dir.back() == '/' ? output_dir : output_dir + '/';
     video_flag_ = false;
     return true;
 }
 
 bool Pipeline::setVideoPath(const std::string& video_src_path,
-                            const std::string& video_dst_path) {
+                            const std::string& video_dst_dir) {
     if (!fs::exists(video_src_path)) {
         std::cerr << "视频源路径不存在: " << video_src_path << std::endl;
         return false;
@@ -81,12 +81,12 @@ bool Pipeline::setVideoPath(const std::string& video_src_path,
         std::cerr << "视频打开失败: " << video_src_path << std::endl;
         return false;
     }
-    if (!fs::exists(fs::path(video_dst_path).parent_path())) {
-        if (fs::create_directories(fs::path(video_dst_path).parent_path())) {
-            std::cout << "输出目录不存在，创建成功: " << video_dst_path
+    if (!fs::exists(fs::path(video_dst_dir))) {
+        if (fs::create_directories(fs::path(video_dst_dir))) {
+            std::cout << "输出目录不存在，创建成功: " << video_dst_dir
                       << std::endl;
         } else {
-            std::cerr << "输出目录不存在，创建失败: " << video_dst_path
+            std::cerr << "输出目录不存在，创建失败: " << video_dst_dir
                       << std::endl;
             return false;
         }
@@ -97,6 +97,9 @@ bool Pipeline::setVideoPath(const std::string& video_src_path,
     double fps = cap_.get(cv::CAP_PROP_FPS);
     int fourcc = cv::VideoWriter::fourcc(
         'm', 'p', '4', 'v');  // mp4v是常用的编码器，兼容性较好
+    std::string video_dst_path =
+        (video_dst_dir.back() == '/' ? video_dst_dir : video_dst_dir + '/') +
+        video_src_path.substr(video_src_path.find_last_of('/') + 1);
     writer_ =
         cv::VideoWriter(video_dst_path, fourcc, fps, cv::Size(width, height));
 
@@ -175,7 +178,8 @@ void Pipeline::threadVideoProducer() {
             {
                 std::lock_guard<std::mutex> lock(mtx_batch_);
                 batch_queue_.push(data);
-                cv_batch_.notify_one();// 待视频全部读取完成后，再通知推理线程，注释这个，用来测纯推理线程时间
+                cv_batch_
+                    .notify_one();  // 待视频全部读取完成后，再通知推理线程，注释这个，用来测纯推理线程时间
             }
             batch_cache.clear();
             batch_cache.reserve(max_batch_size);
@@ -225,7 +229,8 @@ void Pipeline::threadInfer() {
         std::queue<std::shared_ptr<TensorRTYolo::BatchData>> batch_queue;
         swap(batch_queue, batch_queue_);
         lock.unlock();
-        //std::cout << "当前待处理batch_queue: " << batch_queue.size() << std::endl;
+        // std::cout << "当前待处理batch_queue: " << batch_queue.size() <<
+        // std::endl;
         while (!batch_queue.empty()) {
             std::vector<std::pair<std::shared_ptr<TensorRTYolo::BatchData>,
                                   std::shared_ptr<TensorRTYolo::BatchResult>>>
@@ -251,8 +256,8 @@ void Pipeline::threadInfer() {
                 CUDA_CHECK(cudaStreamSynchronize(
                     preprocessed_queue[i].first->gpu_buf->cuda_stream));
             }
-            // std::cout << "流数量: " << preprocessed_queue.size() << std::endl;
-            // 获取结果
+            // std::cout << "流数量: " << preprocessed_queue.size() <<
+            // std::endl; 获取结果
             for (auto& pair : preprocessed_queue) {
                 auto& batch_data = pair.first;
                 auto& ret = pair.second;
