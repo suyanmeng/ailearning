@@ -225,13 +225,11 @@ void Pipeline::threadInfer() {
         std::queue<std::shared_ptr<TensorRTYolo::BatchData>> batch_queue;
         swap(batch_queue, batch_queue_);
         lock.unlock();
-        std::cout << "当前待处理batch_queue: " << batch_queue.size()
-                  << std::endl;
+        //std::cout << "当前待处理batch_queue: " << batch_queue.size() << std::endl;
         while (!batch_queue.empty()) {
             std::vector<std::pair<std::shared_ptr<TensorRTYolo::BatchData>,
                                   std::shared_ptr<TensorRTYolo::BatchResult>>>
                 preprocessed_queue;
-            // std::cout << "当前待处理---------------- "  << std::endl;
             for (int i = 0; i < trt_->getMaxBufferNum() && !batch_queue.empty();
                  i++) {
                 auto batch_data = batch_queue.front();
@@ -253,7 +251,7 @@ void Pipeline::threadInfer() {
                 CUDA_CHECK(cudaStreamSynchronize(
                     preprocessed_queue[i].first->gpu_buf->cuda_stream));
             }
-            std::cout << "流数量: " << preprocessed_queue.size() << std::endl;
+            // std::cout << "流数量: " << preprocessed_queue.size() << std::endl;
             // 获取结果
             for (auto& pair : preprocessed_queue) {
                 auto& batch_data = pair.first;

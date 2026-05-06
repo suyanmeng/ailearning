@@ -13,7 +13,6 @@ namespace TensorRTYolo {
 
 class EngineBuilder {
 public:
-    // 这里才接收 ONNX 路径
     bool buildOnnxToEngine(
         const std::string& onnx_path,
         const std::string& save_engine_path
