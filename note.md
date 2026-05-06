@@ -30,6 +30,7 @@ Thread 最小调度单位：Warp（32 个 Thread 一组）
 
 nsys profile --stats=true  -o report_release_901 ./tensorRtYolo
 nsys profile --trace-fork-before-exec=true --trace=cuda --cuda-memory-usage=true --cudabacktrace=true --stats=true -o report1 ./tensorRtYolo
+nsys profile --trace-fork-before-exec=true --cuda-memory-usage=true --cudabacktrace=true --stats=true --force-overwrite=true -o rp_waitread_8_16 ./tensorRtYolo
 --trace-fork-before-exec=true 追踪多进程 /fork/exec 创建的子进程
 --trace=cuda 只追踪 CUDA 相关行为
 --cuda-memory-usage=true 记录显存随时间的变化曲线
@@ -71,3 +72,8 @@ ncu --set full --kernel-name "matrixMulShared" --export matrixMulShared_report .
 安装OpenCV这两个文件因为网络下载不了，手动下载搬到这两个目录
 opencv/.cache/ippicv/606a19b207ebedfe42d59fd916cc4850-ippicv_2021.10.0_lnx_intel64_20230919_general.tgz
 opencv/.cache/data/7505c44ca4eb54b4ab1e4777cb96ac05-face_landmark_model.dat
+
+
+# 9.windows安装cuda相关
+1.下载vs2022 https://aka.ms/vs/17/release/vs_community.exe 勾选桌面应用开发
+2.下载cuda12.4 https://developer.download.nvidia.com/compute/cuda/12.4.0/local_installers/cuda_12.4.0_551.61_windows.exe 选自定义，只勾选第一组，其他组会覆盖gpu等工具版本
